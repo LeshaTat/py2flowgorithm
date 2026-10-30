@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Caesar cipher"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Caesar cipher.&#13;&#10;&#13;&#10;Shift every letter of a message by a key."/>
+        <attribute name="saved" value="2026-10-30 08:24:29 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="message, secret" type="String" array="False" size=""/>
+            <declare name="key" type="Integer" array="False" size=""/>
+            <output expression="&quot;Message?&quot;" newline="True"/>
+            <input variable="message"/>
+            <output expression="&quot;Key (1-25)?&quot;" newline="True"/>
+            <input variable="key"/>
+            <assign variable="secret" expression="encode(message, key)"/>
+            <output expression="&quot;Encoded: &quot; &amp; secret" newline="True"/>
+            <output expression="&quot;Decoded: &quot; &amp; encode(secret, 26 - key)" newline="True"/>
+        </body>
+    </function>
+    <function name="shift" type="String" variable="result">
+        <parameters>
+            <parameter name="c" type="String" array="False"/>
+            <parameter name="key" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="result" type="String" array="False" size=""/>
+            <declare name="code" type="Integer" array="False" size=""/>
+            <assign variable="code" expression="ToCode(c)"/>
+            <if expression="code &gt;= ToCode(&quot;a&quot;) and code &lt;= ToCode(&quot;z&quot;)">
+                <then>
+                    <assign variable="result" expression="ToChar((code - ToCode(&quot;a&quot;) + key) % 26 + ToCode(&quot;a&quot;))"/>
+                </then>
+                <else>
+                    <if expression="code &gt;= ToCode(&quot;A&quot;) and code &lt;= ToCode(&quot;Z&quot;)">
+                        <then>
+                            <assign variable="result" expression="ToChar((code - ToCode(&quot;A&quot;) + key) % 26 + ToCode(&quot;A&quot;))"/>
+                        </then>
+                        <else>
+                            <assign variable="result" expression="c"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
+        </body>
+    </function>
+    <function name="encode" type="String" variable="secret">
+        <parameters>
+            <parameter name="message" type="String" array="False"/>
+            <parameter name="key" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="secret" type="String" array="False" size=""/>
+            <declare name="i" type="Integer" array="False" size=""/>
+            <assign variable="secret" expression="&quot;&quot;"/>
+            <for variable="i" start="0" end="Len(message) - 1" direction="inc" step="1">
+                <assign variable="secret" expression="secret &amp; shift(Char(message, i), key)"/>
+            </for>
+        </body>
+    </function>
+</flowgorithm>

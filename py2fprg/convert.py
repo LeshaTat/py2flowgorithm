@@ -180,14 +180,17 @@ FALLIBLE = {"Char", "ToCode", "ToInteger", "ToReal", "Sqrt", "Ln", "Log", "Log10
 
 
 def can_fail(node: ast.AST, functions) -> str:
-    """What in an expression can stop the program or do Input/Output: an index, a division, a call."""
+    """What in an expression can stop the program, depending on the values, or do Input/Output: an
+    index, a division by a variable, a library call on variables, a call of the program's functions."""
     for n in ast.walk(node):
         if isinstance(n, ast.Subscript):
             return f"the index in {ast.unparse(n)}"
-        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Div, ast.Mod)):
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Div, ast.Mod)) and not (
+                isinstance(n.right, ast.Constant) and n.right.value):
             return f"the division in {ast.unparse(n)}"
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and (n.func.id in functions
-                                                                         or n.func.id in FALLIBLE):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and (
+                n.func.id in functions
+                or n.func.id in FALLIBLE and not all(isinstance(a, ast.Constant) for a in n.args)):
             return ast.unparse(n)
     return ""
 
@@ -809,24 +812,33 @@ class FunctionConverter:
 
     # ----------------------------------------------------------- conditions
     def condition(self, node: ast.expr) -> str:
+        return self.condition_ex(node).text
+
+    def condition_ex(self, node: ast.expr) -> Ex:
         e = self.expr(node)
         if e.type != BOOLEAN:
             raise self.err(f"a condition is true or false, not {type_name(e.type)}", node,
                            "compare explicitly, e.g. `n != 0`")
-        return e.text
+        return e
 
     def negate(self, node: ast.expr) -> str:
-        """`not cond`, simplified for one comparison (`x > 0` -> `x <= 0`)."""
+        return self.negated(node).text
+
+    def negated(self, node: ast.expr) -> Ex:
+        """`not node`, written the way it reads best: `x > 0` -> `x <= 0`, `not ok` -> `ok`, and for
+        `and` / `or` of such conditions De Morgan's rule (`not (a and b)` -> `not a or not b`)."""
         if isinstance(node, ast.Compare) and len(node.ops) == 1 and type(node.ops[0]) in FLIP_COMPARE:
             flipped = ast.copy_location(ast.Compare(left=node.left, ops=[FLIP_COMPARE[type(node.ops[0])]()],
                                                     comparators=node.comparators), node)
-            return self.condition(flipped)
+            return self.condition_ex(flipped)
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            return self.condition(node.operand)
-        e = self.expr(node)
-        if e.type != BOOLEAN:
-            raise self.err(f"a condition is true or false, not {type_name(e.type)}", node)
-        return f"not {paren(e, P_UNARY)}"
+            return self.condition_ex(node.operand)
+        if isinstance(node, ast.BoolOp):
+            word, prec = ("or", P_OR) if isinstance(node.op, ast.And) else ("and", P_AND)
+            parts = [paren(self.negated(v), prec) for v in node.values]
+            self.check_right_sides(node)
+            return Ex(f" {word} ".join(parts), prec, BOOLEAN)
+        return Ex(f"not {paren(self.condition_ex(node), P_UNARY)}", P_UNARY, BOOLEAN)
 
     # ----------------------------------------------------------- expressions
     def expr(self, node: ast.expr) -> Ex:
@@ -932,14 +944,19 @@ class FunctionConverter:
                 raise self.err(f"`{word}` needs true or false on both sides, not {type_name(e.type)}", v,
                                "compare explicitly, e.g. `n != 0`")
             parts.append(paren(e, prec))
+        self.check_right_sides(n)
+        return Ex(f" {word} ".join(parts), prec, BOOLEAN)
+
+    def check_right_sides(self, n: ast.BoolOp) -> None:
+        """Warn when a right side of and / or can fail: Python skips it, Flowgorithm may not."""
+        word = "and" if isinstance(n.op, ast.And) else "or"
         for v in n.values[1:]:
             what = can_fail(v, self.b.functions)
             if what:
                 self.warn(f"Python skips the right side of `{word}` when the left side is "
                           f"{'false' if word == 'and' else 'true'}, Flowgorithm may evaluate it anyway: {what} "
                           "must work then too, or go into a nested if", v)
-                break
-        return Ex(f" {word} ".join(parts), prec, BOOLEAN)
+                return
 
     def e_Compare(self, n: ast.Compare) -> Ex:
         if len(n.ops) != 1:

@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Word count"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Word count.&#13;&#10;&#13;&#10;Count the words of a sentence and find the longest one."/>
+        <attribute name="saved" value="2026-10-30 08:24:29 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="text, longest, current, c" type="String" array="False" size=""/>
+            <declare name="words, i" type="Integer" array="False" size=""/>
+            <output expression="&quot;A sentence?&quot;" newline="True"/>
+            <input variable="text"/>
+            <assign variable="words" expression="0"/>
+            <assign variable="longest" expression="&quot;&quot;"/>
+            <assign variable="current" expression="&quot;&quot;"/>
+            <for variable="i" start="0" end="Len(text) + 1 - 1" direction="inc" step="1">
+                <if expression="i &lt; Len(text)">
+                    <then>
+                        <assign variable="c" expression="Char(text, i)"/>
+                    </then>
+                    <else>
+                        <assign variable="c" expression="&quot; &quot;"/>
+                    </else>
+                </if>
+                <if expression="c == &quot; &quot;">
+                    <then>
+                        <if expression="Len(current) &gt; 0">
+                            <then>
+                                <assign variable="words" expression="words + 1"/>
+                                <if expression="Len(current) &gt; Len(longest)">
+                                    <then>
+                                        <assign variable="longest" expression="current"/>
+                                    </then>
+                                    <else/>
+                                </if>
+                            </then>
+                            <else/>
+                        </if>
+                        <assign variable="current" expression="&quot;&quot;"/>
+                    </then>
+                    <else>
+                        <assign variable="current" expression="current &amp; c"/>
+                    </else>
+                </if>
+            </for>
+            <output expression="words &amp; &quot; words; the longest is '&quot; &amp; longest &amp; &quot;'&quot;" newline="True"/>
+        </body>
+    </function>
+</flowgorithm>

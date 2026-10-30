@@ -247,6 +247,20 @@ class StatementTest(unittest.TestCase):
         ''')
         self.assertIn('<while expression="n &gt; 0">', body)
         self.assertIn('<do expression="answer != ' + Q + 'n' + Q + '">', body)
+        # the condition to repeat is written without `not` where it can be (De Morgan's rule)
+        body = main_body('''
+            done = False
+            while True:
+                n = Input(int)
+                if n >= 1 and n <= 100:
+                    break
+            while True:
+                n = Input(int)
+                if done or not (n > 5):
+                    break
+        ''')
+        self.assertIn('<do expression="n &lt; 1 or n &gt; 100">', body)
+        self.assertIn('<do expression="not done and n &gt; 5">', body)
         self.assertIn("Do loop", error_of(program("while True:\n    if 1 > 0:\n        break\n    Output(1)")))
         self.assertIn("break only ends", error_of(program("n = 0\nwhile n < 3:\n    break")))
         self.assertIn("continue is not part", error_of(program("for i in range(3):\n    continue")))

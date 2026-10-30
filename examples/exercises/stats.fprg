@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Statistics"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Statistics.&#13;&#10;&#13;&#10;Read some numbers and show the smallest, the largest, the average and how many are above it."/>
+        <attribute name="saved" value="2026-10-30 08:24:29 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoyNDoyOSBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="n, i, above" type="Integer" array="False" size=""/>
+            <declare name="smallest, largest, mean" type="Real" array="False" size=""/>
+            <assign variable="n" expression="readCount()"/>
+            <declare name="values" type="Real" array="True" size="n"/>
+            <for variable="i" start="0" end="n - 1" direction="inc" step="1">
+                <output expression="&quot;Number &quot; &amp; i + 1 &amp; &quot;?&quot;" newline="True"/>
+                <input variable="values[i]"/>
+            </for>
+            <assign variable="smallest" expression="values[0]"/>
+            <assign variable="largest" expression="values[0]"/>
+            <for variable="i" start="1" end="n - 1" direction="inc" step="1">
+                <if expression="values[i] &lt; smallest">
+                    <then>
+                        <assign variable="smallest" expression="values[i]"/>
+                    </then>
+                    <else/>
+                </if>
+                <if expression="values[i] &gt; largest">
+                    <then>
+                        <assign variable="largest" expression="values[i]"/>
+                    </then>
+                    <else/>
+                </if>
+            </for>
+            <assign variable="mean" expression="average(values, n)"/>
+            <assign variable="above" expression="0"/>
+            <for variable="i" start="0" end="n - 1" direction="inc" step="1">
+                <if expression="values[i] &gt; mean">
+                    <then>
+                        <assign variable="above" expression="above + 1"/>
+                    </then>
+                    <else/>
+                </if>
+            </for>
+            <output expression="&quot;Smallest: &quot; &amp; smallest &amp; &quot;, largest: &quot; &amp; largest" newline="True"/>
+            <output expression="&quot;Average: &quot; &amp; ToFixed(mean, 2) &amp; &quot;, above it: &quot; &amp; above" newline="True"/>
+        </body>
+    </function>
+    <function name="readCount" type="Integer" variable="n">
+        <parameters/>
+        <body>
+            <comment text="Ask until the count is between 1 and 100."/>
+            <declare name="n" type="Integer" array="False" size=""/>
+            <do expression="n &lt; 1 or n &gt; 100">
+                <output expression="&quot;How many numbers (1-100)?&quot;" newline="True"/>
+                <input variable="n"/>
+            </do>
+        </body>
+    </function>
+    <function name="average" type="Real" variable="result">
+        <parameters>
+            <parameter name="values" type="Real" array="True"/>
+            <parameter name="n" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="total, result" type="Real" array="False" size=""/>
+            <declare name="i" type="Integer" array="False" size=""/>
+            <assign variable="total" expression="0.0"/>
+            <for variable="i" start="0" end="n - 1" direction="inc" step="1">
+                <assign variable="total" expression="total + values[i]"/>
+            </for>
+            <assign variable="result" expression="total / n"/>
+        </body>
+    </function>
+</flowgorithm>
