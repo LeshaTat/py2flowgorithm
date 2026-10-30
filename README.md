@@ -51,17 +51,18 @@ python3 -m unittest discover -s tests -v
 
 | Python | Flowgorithm |
 |---|---|
-| the function that `if __name__ == "__main__":` calls (`main()`, `sys.exit(main())`, also one imported from another module), else `def main():`, else the module-level code | the `Main` function |
+| the function that `if __name__ == "__main__":` calls (`main()`, `sys.exit(main())`, also one imported from another module), else `def main():`, else the module-level code | the `Main` function (an `if __name__` block that does more than one call becomes Main itself, and `main()` an ordinary function) |
 | `def f(a: int, xs: list[float]) -> str:` in any module `main()` reaches (directly or through imports) | a function with typed parameters; the return type comes from the annotation or is inferred |
 | `return expr` at the end of a function, or inside an `if` (the statements after the `if` move into its `else`) | assignment to the function's return variable (Flowgorithm returns a variable's value when the function ends; there is no early return) |
 | `x = 5`, `x: float = 0`, `x += 1`, `a, b = b, a` | `Declare` (hoisted to the top of the function, grouped by type) + `Assign`; a variable that later gets a float is Real from the start |
 | `name = input("Prompt")`, `n = int(input("Prompt"))`, `x = float(input())` | `Output "Prompt"` + `Input` into a String / Integer / Real variable |
+| `input()` inside an expression: `total += int(input("n? "))`, `if input("Again? ") == "y":`, `while input() != "":` | `Output` + `Input` into a variable (`answer`) right before the statement; for a loop condition before the loop and again at the end of its body |
 | `print(a, "text", end="")`, f-strings, `f"{x:.2f}"` | `Output a & "text"` with newline on/off; `ToFixed(x, 2)` |
 | `if / elif / else` | nested `If` shapes |
 | `while cond:` | `While` |
 | `while True: ... if cond: break` (break last) | `Do` loop with the negated condition |
 | `while True: if cond: break ...` (break first) | `While` with the negated condition |
-| `for i in range(a, b, step)` | `For` from `a` to `b - 1` (inclusive end, `dec` for negative literal steps) |
+| `for i in range(a, b, step)` | `For` from `a` to `b - 1` (inclusive end, `dec` for negative literal steps); when the body changes `i`, `i` is read after the loop or `i` is also a float, the `For` counts with a hidden `iCounter` and sets `i = iCounter` at the top of each pass |
 | `for x in xs`, `for ch in s`, `for i, x in enumerate(xs)` | `For` over an index variable plus `x = xs[i]` / `Char(s, i)` |
 | `xs = [0] * n`, `xs: list[str] = [""] * n`, `xs = [3, 4]`, `xs[i]`, `len(xs)` | array `Declare` with a size (in place, since the size is a runtime value), element assignment, `Size(xs)` |
 | `f(x)` as a statement | `Call` |
@@ -72,8 +73,11 @@ python3 -m unittest discover -s tests -v
 | `abs`, `round(x, n)`, `str`, `int(s)`, `float(s)`, `ord`, `chr`, `len(s)`, `s[i]` | `Abs`, `ToReal(ToFixed(x, n))`, `ToString`, `ToInteger`, `ToReal`, `ToCode`, `ToChar`, `Len`, `Char(s, i)` |
 | `**`, `//`, `%`, `and/or/not`, comparisons, `a < b < c`, string `+` | `^`, `Int(a / b)`, `%`, `and/or/not`, `==` …, `a < b and b < c`, `&` (`//` and `%` differ from Python for negative operands: Flowgorithm truncates toward zero; the converter warns when an operand may be negative) |
 | `if n:`, `while s:`, `if not xs:` (Python truthiness) | explicit tests: `n != 0`, `s != ""`, `Size(xs) == 0` |
+| `count += x > 0`, `score + (a == b)`, `int(flag)` (a Boolean as 1/0) | `If x > 0: count = count + 1`; otherwise an `If` that sets a variable to 1 or 0 |
+| `lo <= f() <= hi`, `random.randint(low(), 10)`, `tally[random.randint(1, 6)] += 1`, `[f()] * n` | the call runs once, into a variable before the statement, as in Python |
+| float literals Python writes with an exponent: `1e-05`, `1.602176634e-19`, `6.02e23` | `0.00001`, `1.602176634 * 10 ^ -19`, `6.02 * 10.0 ^ 23` (Flowgorithm has no exponent notation) |
 | `snake_case`, names that clash with Flowgorithm keywords (`len`, `string`, …), names differing only in case, non-ASCII names | renamed (`snakeCase`, `lenVal`, `n2`, `größe` → `grosse`, `счёт` → `schet`): Flowgorithm identifiers are ASCII, allow no underscore and are case-insensitive |
-| a nested `for` that reuses an enclosing loop's variable (`for _ in ...:` twice) | the inner loop gets its own counter (`vInner`), with a warning |
+| a nested `for` that reuses an enclosing loop's variable (`for _ in ...:` twice) | the outer loop counts with a hidden counter (`vCounter`), so the inner one cannot disturb it |
 
 Test files (`test_*.py`, `*_test.py`, `tests/` and `test/` directories, `conftest.py`) are never
 read. Other `.py` files in the tree that use unsupported Python are skipped with a warning and only
@@ -110,17 +114,17 @@ Flowgorithm has no exceptions, classes, dictionaries, tuples, string methods, sl
 nested lists, `break`/`continue` outside the two `while True` patterns above, `return`
 inside loops, `for ... else`, conditional expressions, `in`, `min`/`max`, generators,
 lambdas, global variables, and no string escape sequences (quotes and tabs inside strings
-are emitted through `ToChar(n)`). The `if __name__ == "__main__":` block may only call the
-entry function. Keep the interactive program inside that subset and put everything else in
-`# fg: ignore` functions or in the tests.
+are emitted through `ToChar(n)`). Keep the interactive program inside that subset and put
+everything else in `# fg: ignore` functions or in the tests.
 
 ### Where Python and Flowgorithm differ anyway
 
 * Output: Flowgorithm prints a whole-number Real without the `.0` (`2`, where Python prints `2.0`)
   and Booleans as `true`/`false`.
 * `//` and `%` truncate toward zero in Flowgorithm (Python rounds down); the converter warns.
-* A `for` counter read after its loop: Flowgorithm's counter probably ends one step past the last
-  value; the converter warns.
+* A literal written as `mantissa * 10 ^ exponent` may differ from Python's value in the last digit.
+* Moving a call before its statement must not change the order of side effects, so `input()` on the
+  right of `and`/`or`, or after another call in the same expression, is reported as an error.
 
 ## Validating the output without Flowgorithm
 

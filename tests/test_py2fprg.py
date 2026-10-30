@@ -959,13 +959,22 @@ class BugHuntRegressionTest(unittest.TestCase):
     """Findings of the adversarial bug hunt (docs/bug-hunt-findings.md, ids C0..C32 / leads L1..)."""
 
     # ---- expressions -------------------------------------------------------------------------
-    def test_chained_comparison_middle_call_is_error(self):  # C0
-        self.assertIn("evaluated twice", error_of('''
+    def test_chained_comparison_with_a_call_in_the_middle(self):  # C0
+        xml = same_as_python(self, '''
             import random
+
+            def roll() -> int:
+                print("rolling")
+                return 4
+
             def main():
                 if 1 <= random.randint(1, 10) <= 5:
                     print("low")
-        '''))
+                if 2 < roll() < 6:
+                    print("mid")
+        ''', randoms=[3])
+        self.assertIn('<assign variable="value" expression="1 + Random(10)"/>', xml)
+        self.assertIn('<if expression="1 &lt;= value and value &lt;= 5">', xml)
         body = body_xml("def main():\n    x = 3\n    if 1 <= x <= 5:\n        print(x)\n")
         self.assertIn('<if expression="1 &lt;= x and x &lt;= 5">', body)
 
@@ -974,29 +983,132 @@ class BugHuntRegressionTest(unittest.TestCase):
         self.assertEqual(sum("truncation semantics" in m for m in msgs), 1, msgs)
         self.assertFalse(any("truncation" in m for m in warnings_of("def main():\n    print(7 // 2)\n")))
 
-    def test_denormal_literals_are_errors(self):  # C3
-        self.assertIn("cannot be written", error_of("def main():\n    x = 5e-324\n    print(x)\n"))
-        self.assertIn("cannot be written", error_of("TINY = 1e-320\n\ndef main():\n    print(TINY)\n"))
+    def test_numbers_that_python_writes_with_an_exponent(self):  # C3
+        cases = {"1e-05": "0.00001", "1.602176634e-19": "1.602176634 * 10 ^ -19",
+                 "6.02214076e23": "6.02214076 * 10.0 ^ 23", "1e-8": "10 ^ -8",
+                 "5e-324": "5 * 10 ^ -300 * 10 ^ -24", "1e16": "10000000000000000.0"}
+        for literal, text in cases.items():
+            with self.subTest(literal=literal):
+                body = body_xml(f"def main():\n    x = {literal}\n    print(x)\n")
+                self.assertIn(f'<assign variable="x" expression="{text}"/>', body)
+                value = fprg_run.evaluate(text)
+                self.assertAlmostEqual(value / float(literal), 1.0, places=14)
+        xml = conv("CHARGE = -1.602176634e-19\n\ndef main():\n    print(CHARGE * 2)\n")
+        self.assertIn('<assign variable="CHARGE" expression="-1.602176634 * 10 ^ -19"/>', xml)
+        self.assertIn('expression="-(10.0 ^ 30)"', conv("BIG = -1e30\n\ndef main():\n    print(BIG)\n"))
+        self.assertIn('expression="2 / (5 * 10 ^ -20)"', conv("def main():\n    print(2 / 5e-20)\n"))
 
-    def test_randint_lower_bound_with_call_is_error(self):  # C4
-        self.assertIn("evaluated twice", error_of('''
+    def test_randint_lower_bound_with_a_call(self):  # C4
+        xml = same_as_python(self, '''
             import random
+
             def low() -> int:
-                return 1
+                print("asking")
+                return 3
+
             def main():
-                print(random.randint(low(), 10))
+                r = random.randint(low(), 10)
+                print(r)
+        ''', randoms=[5])
+        self.assertIn('<assign variable="r" expression="low + Random(10 - low + 1)"/>', xml)
+
+    def test_boolean_used_as_a_number(self):  # C5, C9
+        xml = same_as_python(self, '''
+            def main():
+                xs = [3, -1, 4, -5, 9]
+                positives = 0
+                for x in xs:
+                    positives += x > 0
+                a = 3
+                score = 0
+                score = score + (a == 3)
+                n = int(a > 2) * 10
+                print(positives, score, n)
+        ''')
+        self.assertIn('<if expression="x &gt; 0">\n                    <then>\n'
+                      '                        <assign variable="positives" expression="positives + 1"/>', xml)
+        self.assertIn('<assign variable="score" expression="score + asNumber"/>', xml)
+
+    def test_input_inside_expressions(self):
+        same_as_python(self, '''
+            def ask(prompt: str) -> int:
+                return int(input(prompt))
+
+            def show(n: int):
+                print("got", n)
+
+            def main():
+                print("Hello, " + input("Name? ") + "!")
+                total = 0
+                total += int(input("Number: "))
+                total += int(input("Number: "))
+                print(total, f"{input('Unit? ')}s")
+                if input("Continue? ") == "y":
+                    print("yes")
+                for i in range(int(input("How many? "))):
+                    print(i)
+                show(ask("n? ") * 2)
+                x = int(input("x? "))
+                if x > 0:
+                    print("pos")
+                elif input("zero? ") == "y":
+                    print("zero")
+        ''', ["Ann", "3", "4", "metre", "y", "2", "5", "0", "y"])
+
+    def test_input_in_loop_conditions_is_read_before_every_test(self):
+        xml = same_as_python(self, '''
+            def main():
+                count = 0
+                while input("More? ") == "y":
+                    count += 1
+                n = 0
+                while True:
+                    n += 1
+                    if input("Again? ") != "y":
+                        break
+                m = 0
+                while True:
+                    if int(input("Value? ")) < 0:
+                        break
+                    m += 1
+                print(count, n, m)
+        ''', ["y", "y", "n", "y", "n", "5", "-1"])
+        body = re.search(r'<function name="Main".*?<body>(.*?)</body>', xml, re.S).group(1)
+        self.assertEqual(body.count('<output expression="&quot;More? &quot;"'), 2)  # before + end of body
+        self.assertEqual(body.count('<output expression="&quot;Again? &quot;"'), 1)  # end of the Do body
+
+    def test_hoisting_that_would_change_python_semantics_is_an_error(self):
+        self.assertIn("on the right of `and` / `or`", error_of(
+            'def main():\n    x = 1\n    if x > 0 and input("sure? ") == "y":\n        print("ok")\n'))
+        self.assertIn("before a call that Python makes first", error_of('''
+            def f() -> int:
+                print("f")
+                return 1
+
+            def main():
+                print(f() + int(input("n? ")))
         '''))
 
-    def test_boolean_arithmetic_is_error(self):  # C5, C9
-        self.assertIn("Boolean", error_of("def main():\n    t = 0\n    t += 3 > 1\n    print(t)\n"))
-        self.assertIn("Boolean", error_of("def main():\n    a = 3\n    s = 0 + (a == 3)\n"))
+    def test_values_python_evaluates_once(self):  # augmented element with a call in the index, list fill
+        xml = same_as_python(self, '''
+            import random
+
+            def main():
+                tally = [0] * 7
+                for k in range(4):
+                    tally[random.randint(1, 6)] += 1
+                xs = [random.randint(1, 6)] * 3
+                print(tally[1], tally[2], tally[3], xs[0], xs[1], xs[2])
+        ''', randoms=[0, 1, 1, 2, 4])
+        self.assertIn('<assign variable="tally[pos]" expression="tally[pos] + 1"/>', xml)
+        self.assertIn('<assign variable="xs[idx]" expression="fill"/>', xml)
 
     def test_fstring_repr_of_numbers(self):  # L4, L22
         same_as_python(self, 'def main():\n    n = 3\n    x = 2.5\n    print(f"{n=} {x!r}")\n')
         self.assertIn("only supported for numbers", error_of('def main():\n    s = "a"\n    print(f"{s!r}")\n'))
 
     # ---- for loops ---------------------------------------------------------------------------
-    def test_nested_loops_reusing_a_counter_get_their_own(self):  # C12 and variants, L24, L25
+    def test_nested_loops_reusing_a_counter_get_their_own(self):  # C12 and variants, L24, L25, L26
         cases = [
             "for _ in range(3):\n        for _ in range(2):\n            print('x')",
             "for i in range(3):\n        for i in range(2):\n            print(i)",
@@ -1005,30 +1117,33 @@ class BugHuntRegressionTest(unittest.TestCase):
             "for i in range(2):\n        for i, x in enumerate(xs):\n            print(i, x)",
             "for i, x in enumerate(xs):\n        for i in range(2):\n            print(i, x)",
             "for i in range(2):\n        for j in range(2):\n            for i in range(2):\n                print(i, j)",
+            "for i in range(3):\n        for i in range(2):\n            pass\n        print(i)",
         ]
         for loops in cases:
             with self.subTest(loops=loops):
                 warnings: list = []
                 same_as_python(self, f"def main():\n    xs = [5, 6]\n    ys = [7, 8]\n    {loops}\n",
                                warnings=warnings)
-                self.assertTrue(any("renamed" in w.msg for w in warnings))
+                self.assertEqual([w.msg for w in warnings], [])
+        body = body_xml("def main():\n    for _ in range(3):\n        for _ in range(2):\n            print(1)\n")
+        self.assertIn('<for variable="vCounter" start="0" end="2"', body)
+        self.assertIn('<for variable="v" start="0" end="1"', body)
 
-    def test_reading_a_reused_loop_variable_after_the_inner_loop_is_error(self):  # L26
-        self.assertIn("read after an inner loop", error_of('''
-            def main():
-                for i in range(3):
-                    for i in range(2):
-                        pass
-                    print(i)
-        '''))
-
-    def test_assigning_the_loop_counter_is_error(self):  # C13, L23, L27
-        for stmt in ("j += 1", "j = 10", "j, k = 1, 2"):
+    def test_loop_variable_changed_in_the_body_or_read_after_the_loop(self):  # C13, C16, L23, L27
+        for stmt in ("j += 1", "j = 10", "j, k = j * 2, 2"):
             with self.subTest(stmt=stmt):
-                self.assertIn("modified inside its for loop",
-                              error_of(f"def main():\n    for j in range(5):\n        {stmt}\n        print(j)\n"))
-        self.assertIn("modified inside its for loop", error_of(
-            "def main():\n    xs = [1, 2]\n    for i, x in enumerate(xs):\n        i += 1\n        print(i)\n"))
+                same_as_python(self, f"def main():\n    for j in range(5):\n        {stmt}\n        print(j)\n"
+                                     f"    print(j)\n")
+        same_as_python(self, "def main():\n    xs = [1, 2]\n    for i, x in enumerate(xs):\n        i += 1\n"
+                             "        print(i, x)\n")
+        xml = same_as_python(self, "def main():\n    n = int(input('n'))\n    for i in range(n):\n        print(i)\n"
+                                   "    print('last', i)\n", ["3"])
+        self.assertIn('<for variable="iCounter" start="0" end="n - 1"', xml)
+        self.assertIn('<assign variable="i" expression="iCounter"/>', xml)
+        # a loop whose variable is not read afterwards still counts with it directly
+        body = body_xml("def main():\n    for i in range(3):\n        print(i)\n    for i in range(2):\n"
+                        "        print(i)\n")
+        self.assertEqual(body.count('<for variable="i"'), 2)
         # the element variable of a for-each loop is not the counter: Python and Flowgorithm agree
         same_as_python(self, "def main():\n    xs = [1, 2]\n    for x in xs:\n        x = x * 10\n        print(x)\n")
 
@@ -1048,7 +1163,7 @@ class BugHuntRegressionTest(unittest.TestCase):
                 for i in range(0, n, POS):
                     print(i)
         ''', ["5", "2"], warnings=warnings)
-        self.assertIn('direction="dec" step="1"', xml)
+        self.assertIn('<for variable="i" start="n" end="1" direction="dec" step="-STEP">', xml)
         self.assertFalse(any("assumed positive" in w.msg for w in warnings))
 
     def test_negated_break_condition_is_type_checked(self):  # C15
@@ -1060,19 +1175,16 @@ class BugHuntRegressionTest(unittest.TestCase):
                         break
         '''))
 
-    def test_counter_read_after_its_loop_warns(self):  # C16
-        msgs = warnings_of("def main():\n    for i in range(3):\n        print(i)\n    print(i)\n")
-        self.assertTrue(any("read after its for loop" in m for m in msgs), msgs)
-
-    def test_counter_that_becomes_real_is_error(self):  # L18
-        self.assertIn("loop variable 'x' is also used as Real", error_of('''
+    def test_loop_variable_also_used_as_real(self):  # L18
+        xml = same_as_python(self, '''
             def main():
                 for x in range(3):
                     print(x)
                 ys = [0.5, 1.5]
                 for x in ys:
                     print(x)
-        '''))
+        ''')
+        self.assertIn('<for variable="xCounter"', xml)
 
     # ---- functions and returns -----------------------------------------------------------------
     def test_nested_and_elif_returns(self):  # C17, C18
@@ -1485,10 +1597,15 @@ class ProjectLayoutTest(unittest.TestCase):
         self.assertIn('<output expression="1"', xml)
         (_, xml), = self.convert({"prog.py": 'def main():\n    print(1)\n\nmain()\n'})
         self.assertIn('<output expression="1"', xml)
-        with self.assertRaises(ConvertError) as cm:
-            self.convert({"prog.py": 'def main():\n    print(1)\n\nif __name__ == "__main__":\n'
-                                     '    print("starting")\n    main()\n'})
-        self.assertIn("only a call of main()", str(cm.exception))
+        # a block that does more than call main() is Main itself, and main() an ordinary function
+        (_, xml), = self.convert({"prog.py": 'def main(n: int):\n    print(n)\n\nif __name__ == "__main__":\n'
+                                             '    print("starting")\n    for k in range(2):\n        main(k)\n'})
+        self.assertIn('<function name="mainVal" type="None" variable="">', xml)
+        self.assertIn('<call expression="mainVal(k)"/>', xml)
+        with self.assertRaises(ConvertError) as cm:  # names the block assigns are module variables
+            self.convert({"prog.py": 'def show():\n    print(level)\n\nif __name__ == "__main__":\n'
+                                     '    level = 3\n    show()\n'})
+        self.assertIn("'level' is a module-level variable", str(cm.exception))
 
     def test_two_programs_may_call_each_others_main(self):
         outputs = self.convert({"a.py": 'def main():\n    print("a")\n' + self.GUARD,

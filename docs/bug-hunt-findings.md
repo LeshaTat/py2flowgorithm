@@ -4,8 +4,9 @@ Source: a 10-finder / dedup / 3-lens-verification workflow run against the conve
 independent review's fixes landed. Its dedup step failed (output too large), so near-duplicates remain,
 and the verifiers of the last 64 findings were cut off, so those are unconfirmed leads.
 
-State of the code (second session, 2026-10-30): every confirmed finding below is fixed or has a
-clean error, except the two documented `//` / `%` limitations (C1, C2) and C16, which warns. Each
+State of the code (second session, 2026-10-30): every confirmed finding below is fixed, converted
+where it used to be a clean error, or (for real type errors) a clean error, except the two documented
+`//` / `%` limitations (C1, C2). Each
 item has a regression test in `tests/test_py2fprg.py` (`BugHuntRegressionTest`, and
 `ProjectLayoutTest` for the project-layout leads); 265 tests pass. The unverified leads at the end
 were triaged: the ones marked *fixed* there were reproduced first. The "Actual" blocks below show
@@ -23,14 +24,19 @@ Rules that changed while fixing (also in the README):
 * A name assigned anywhere in a function is local there (Python's rule), so it may shadow a module
   constant. A module-level name assigned more than once, or not to a literal, is a variable: reading
   it in a function is a clean error (Flowgorithm has no globals).
-* The `if __name__ == "__main__":` block decides the entry point: it may only call one function
-  (usually `main()`, possibly imported from another module, possibly as `sys.exit(main())`).
+* The `if __name__ == "__main__":` block decides the entry point: the function it calls (usually
+  `main()`, possibly imported, possibly as `sys.exit(main())`), or the block itself when it does more.
+* What an expression needs evaluated first (an `input()` inside an expression, a chained comparison's
+  middle call, a Boolean used as a number, ...) goes into a variable just before the statement; for
+  a loop condition, before the loop and again at the end of its body.
+* A for loop counts with a hidden `<name>Counter` when Flowgorithm's For could not use the Python
+  variable itself (assigned in the body, read after the loop, or used as a Real).
 
 ## Confirmed by verification (33)
 
 ### C0. Chained comparison evaluates the middle operand twice (random/side effects differ from Python)
 
-- **status:** fixed: clean error asking to assign the middle operand to a variable (test: `BugHuntRegressionTest`)
+- **status:** converted: the middle operand is evaluated once, into a variable, before the statement (test: `BugHuntRegressionTest`)
 - severity: medium, votes: TTT, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.e_Compare (the `left = right` loop re-emits the shared operand with self.sub())`
 - expected: The middle operand evaluated once: hoist it into a temporary (`<assign variable="temp" expression="1 + Random(10)"/>` then `1 <= temp and temp <= 5`) when it is not a plain variable/literal, or report a clean error for chained comparisons whose middle operand is a call / Random.
@@ -113,7 +119,7 @@ Actual (at the time of the hunt):
 
 ### C3. Denormal float literals are silently rewritten to 0.0
 
-- **status:** fixed: such literals are a clean error, also as module constants (test: `BugHuntRegressionTest`)
+- **status:** converted: written as `5 * 10 ^ -300 * 10 ^ -24`; other exponent literals as `1.602176634 * 10 ^ -19` (test: `BugHuntRegressionTest`)
 - severity: low, votes: TTT, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.float_text and module-level literal_text (used for module constants)`
 - expected: The literal's value (a Real is a double, so it is representable) or a clean "file:line: error: literal cannot be written without exponent notation"; never a silent value change. (Large values such as 1.5e300 are expanded to a 301-digit literal, which is at least exact.)
@@ -139,7 +145,7 @@ Actual (at the time of the hunt):
 
 ### C4. random.randint(lo, hi) with a non-literal lower bound evaluates `lo` twice
 
-- **status:** fixed: a lower bound containing a call is a clean error (test: `BugHuntRegressionTest`)
+- **status:** converted: the lower bound is evaluated once, into a variable, before the statement (test: `BugHuntRegressionTest`)
 - severity: low, votes: TTT, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.library_call (random.randint / randrange branches) via minus_expr`
 - expected: The bound evaluated once -- store `lo` in a temporary when it is not a literal/variable, e.g. `temp = low()` then `temp + Random(10 - temp + 1)`.
@@ -169,7 +175,7 @@ Actual (at the time of the hunt):
 
 ### C5. A Boolean used as a number (`total += a > b`) is emitted as `total + (a > b)` with no diagnostic
 
-- **status:** fixed: arithmetic on a Boolean is a clean error (test: `BugHuntRegressionTest`)
+- **status:** converted: `total += a > b` becomes `If a > b: total = total + 1`; other uses of a Boolean as a number get 1/0 from an If (test: `BugHuntRegressionTest`)
 - severity: low, votes: TTT, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.e_BinOp (arithmetic branches lack a Boolean operand check)`
 - expected: A clean "file:line: error: arithmetic on a boolean is not supported (use an if statement)" -- e_BinOp checks operand types for String (`&`, repetition, %-formatting) but not for Boolean.
@@ -300,7 +306,7 @@ Actual (at the time of the hunt):
 
 ### C9. Boolean operands in arithmetic are emitted verbatim (Flowgorithm has no bool->int coercion)
 
-- **status:** fixed: same check as C5 (test: `BugHuntRegressionTest`)
+- **status:** converted: see C5
 - severity: medium, votes: TTT, finder: types
 - location: `py2fprg/convert.py: e_BinOp() (and infer() for ast.BinOp) — no check for a BOOLEAN operand under +, -, *, /, %, ^.`
 - expected: Python prints `1 1`. Either a clean ConvertError at the `+` (hint: `if answer == correct: score += 1`) or an emitted If shape; infer() should not leave such variables silently typed Integer.
@@ -392,7 +398,7 @@ p41_unknown_type_location.py:1:1: error: cannot infer the type of variable 'k'
 
 ### C12. Nested loops that reuse the loop variable (for _ in ...: for _ in ...) share one Flowgorithm counter
 
-- **status:** fixed: any nested loop that reuses an enclosing loop's counter (range, enumerate index or element, for-each element) gets its own variable with a warning; reading the name after the inner loop is a clean error (test: `BugHuntRegressionTest`)
+- **status:** converted: a loop whose variable is assigned inside it (also by a nested loop) counts with a hidden `<name>Counter` (test: `BugHuntRegressionTest`)
 - severity: high, votes: TTT, finder: loops
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py, FunctionConverter.s_For (var_assign(tgt.id, INTEGER, s) reuses the same VarInfo; no record of loop variables of enclosing loops)`
 - expected: Each `for` needs its own counter: give `_` (and any target that is the loop variable of an enclosing, still-active for loop, or that an inner for-each assigns as its element variable) a fresh variable per loop (v, v2, ... exactly as fresh_var already does for for-each index variables), or raise a clean error such as "loop variable 'i' is already the loop variable of an enclosing for loop". Python rebinds the target from the iterator every iteration, so writes to it by inner loops never affect the outer iteration; Flowgorithm's For uses the variable itself as the counter.
@@ -431,7 +437,7 @@ Python prints "x" 6 times. In Flowgorithm the inner For leaves v at its final va
 
 ### C13. Assignment to the for-loop variable inside the body changes the iteration count in Flowgorithm but not in Python
 
-- **status:** fixed: assigning a range or enumerate counter in its loop (incl. tuple targets) is a clean error (test: `BugHuntRegressionTest`)
+- **status:** converted: the loop counts with a hidden `<name>Counter` and assigns the Python variable at the top of each pass, so changing it does not change the iteration (test: `BugHuntRegressionTest`)
 - severity: medium, votes: TTT, finder: loops
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py, FunctionConverter.s_For / loop_body (the body is never scanned for Store targets equal to the loop variable)`
 - expected: Reject it with a clean error ("assignment to the loop variable 'j' inside its for loop is not supported in Flowgorithm"), or iterate over a hidden fresh counter and assign the user's variable at the top of the body (the way for-each loops already do with xIndex / x).
@@ -532,7 +538,7 @@ Actual (at the time of the hunt):
 
 ### C16. For-loop counter read after the loop (including in a Do condition) assumes Python's last value; Flowgorithm's counter likely ends one step past the end
 
-- **status:** warning when a for counter is read after its loop (Flowgorithm's final counter value still unconfirmed) (test: `BugHuntRegressionTest`)
+- **status:** converted: a loop whose variable is read after it (found by a may-analysis; the function is converted again) counts with a hidden counter, so the variable keeps Python's last value (test: `BugHuntRegressionTest`)
 - severity: low, votes: TTT, finder: loops
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py, FunctionConverter.s_For (no tracking of reads of the loop variable after its loop)`
 - expected: Either confirm the final counter value matches Python's (n-1) or warn/error when the loop variable of a for loop is read after the loop (or used in an enclosing Do condition), since the two languages differ on what the variable holds after the loop.
@@ -1208,7 +1214,7 @@ Each lead was reproduced before it was fixed; *fixed* items have tests in `BugHu
 - `# fg: ignore` on `def main()` crashes with AttributeError instead of a clean error — **fixed (C26)**
 - Non-UTF-8 source file (valid Python with a PEP 263 coding cookie) crashes with UnicodeDecodeError, even if it is an unrelated sibling file — **fixed**
 - RecursionError on a long left-nested `+` chain (about 340 operands or more; ~600 for string concatenation in print()) — **OPEN (needs an iterative expression walk; 340+ operands only)**
-- Augmented assignment to an array element evaluates the index expression twice, so `tally[random.randint(1, 6)] += 1` draws two different random numbers (and `counts[roll()] += 1` prompts for input twice) — **fixed (batch 1): a clean error when the index contains a call**
+- Augmented assignment to an array element evaluates the index expression twice, so `tally[random.randint(1, 6)] += 1` draws two different random numbers (and `counts[roll()] += 1` prompts for input twice) — **converted: the index is evaluated once, into a variable**
 - Negative index given as an expression (`xs[-i]`, `xs[-(i + 1)]`) is emitted verbatim; only literal negatives are translated to `Size(xs) - k` — **OPEN / limitation: `xs[-i]` becomes `xs[Size(xs) - i]`, which differs from Python when i <= 0**
 - `# fg: ignore` functions are still validated for parameters, defaults and annotations, contradicting README ('it may use any Python') — **fixed**
 - Project with two runnable modules: calling the other module's main() is rejected as 'main() cannot be called' because FuncInfo.is_main is stale from the previous build — **fixed: per-build state is reset**
@@ -1218,7 +1224,7 @@ Each lead was reproduced before it was fixed; *fixed* items have tests in `BugHu
 - Bare `main()` call at module level (no __name__ guard) gets the generic 'module-level code is not supported' error with a hint that does not apply — **fixed: accepted as the entry call**
 - `while 1:` with a trailing `if cond: break` is not recognised as the Do-loop pattern (only `while True:` is) — **fixed (batch 1)**
 - Launcher module that imports main (`from game import main` + guard) is reported as 'no main() function and no module-level code found' — **fixed**
-- Loop variable re-used as a float element variable makes the For counter Real (silently; only fprg_lint warns) — **fixed: a clean error**
+- Loop variable re-used as a float element variable makes the For counter Real (silently; only fprg_lint warns) — **converted: that loop counts with a hidden counter**
 - Array created inside a loop body emits a Declare that re-executes every iteration (only fprg_lint warns) — **a converter warning (by design)**
 - `yield` in a reachable function is reported as 'expression statement has no effect' — **fixed: 'generators (yield) are not supported'**
 - Unannotated nested list `[[0] * 3] * 3` gets 'cannot infer the element type' with a hint to annotate `list[int]` — **fixed: 'nested lists are not supported'**
@@ -1227,9 +1233,9 @@ Each lead was reproduced before it was fixed; *fixed* items have tests in `BugHu
 - return nested inside an if within another if is silently dropped as an early exit (code after the outer if runs, wrong value returned) — **fixed (C17)**
 - // with a negative operand that is not a literal gives truncated instead of floored results (temperature table with negative Celsius) — **documented limitation (C1): warning**
 - % with a negative dividend from a variable keeps the dividend's sign (Caesar decrypt wraps to '^', odd test fails) with no warning — **documented limitation (C2): warning**
-- Chained comparison duplicates the middle operand, so a call with side effects (input prompt, print, Random) is executed twice — **fixed (C0)**
+- Chained comparison duplicates the middle operand, so a call with side effects (input prompt, print, Random) is executed twice — **converted (C0)**
 - Unannotated parameter is typed Integer from one literal call site; a Real argument at another call site is silently truncated — **fixed (C20)**
 - A Real argument passed to an int-annotated parameter is silently truncated (Python ignores the annotation and prints the Real) — **fixed: a clean error**
 - Module-level program: a function reading a module variable that is reassigned later gets the last literal value for every call — **fixed: a clean error**
-- Statements other than main() inside the `if __name__ == "__main__":` guard are silently dropped — **fixed: a clean error**
+- Statements other than main() inside the `if __name__ == "__main__":` guard are silently dropped — **converted: such a block becomes Main, main() an ordinary function**
 - input() assigned to an array element is rejected with a misleading message ("must be assigned directly to a variable") — **fixed (batch 1)**

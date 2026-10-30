@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
@@ -28,18 +29,32 @@ MATH_FUNCS = {
 DEFAULT_VALUES = {INTEGER: {0}, REAL: {0, 0.0}, STRING: {""}, BOOLEAN: {False}}
 
 
-def float_literal(v: float) -> str:
-    """Flowgorithm text for a float; ValueError when it needs exponent notation to be exact."""
+def float_literal(v: float) -> tuple[str, int]:
+    """Flowgorithm text (and precedence) for a float. Flowgorithm has no exponent notation: numbers
+    that Python writes with one become plain decimals when that stays short (1e-05 -> 0.00001),
+    else mantissa * 10 ^ exponent (1.602176634e-19 -> 1.602176634 * 10 ^ -19; `10.0` for positive
+    exponents, so that the power is a Real and cannot overflow Flowgorithm's Integer)."""
     if v != v or v in (float("inf"), float("-inf")):
         raise ValueError(f"{v!r} is not supported")
     s = repr(v)
-    if "e" in s or "E" in s:
-        s = format(v, ".17f").rstrip("0").rstrip(".")
-        if "." not in s:
-            s += ".0"
-        if v != 0 and float(s) == 0.0 or len(s) > 40:
-            raise ValueError(f"the number {v!r} cannot be written as a Flowgorithm literal")
-    return s
+    if "e" not in s:
+        return s, (P_UNARY if s.startswith("-") else P_ATOM)
+    mantissa, exp = s.split("e")
+    e = int(exp)
+    if -7 <= e <= 18:  # a plain decimal, exactly the digits Python shows
+        digits = mantissa.lstrip("-").replace(".", "")
+        point = len(mantissa.lstrip("-").split(".")[0]) + e
+        text = ("0." + "0" * -point + digits if point <= 0 else
+                digits[:point].ljust(point, "0") + "." + (digits[point:] or "0"))
+        return ("-" if mantissa.startswith("-") else "") + text, (P_UNARY if mantissa.startswith("-") else P_ATOM)
+    if e < -300:  # 10 ^ e alone would underflow: scale in two steps (denormals)
+        return f"{mantissa} * 10 ^ -300 * 10 ^ {e + 300}", P_MUL
+    power = f"10 ^ {e}" if e < 0 else f"10.0 ^ {e}"
+    if mantissa == "1":
+        return power, P_POW
+    if mantissa == "-1":  # Flowgorithm's unary minus binds tighter than ^
+        return f"-({power})", P_UNARY
+    return f"{mantissa} * {power}", P_MUL
 
 
 def literal_text(value) -> str:
@@ -49,7 +64,7 @@ def literal_text(value) -> str:
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
-        return float_literal(value)
+        return float_literal(value)[0]
     if isinstance(value, str):
         return string_literal(value)[0]
     raise TypeError(f"unsupported literal {value!r}")
@@ -182,6 +197,30 @@ def assigned_names(stmts: list) -> set[str]:
     return names
 
 
+def paren(text_prec: tuple[str, int], prec: int, side: str = "left") -> str:
+    """An operand's text, parenthesised when it binds less tightly than its context needs."""
+    t, p = text_prec
+    if p < prec or (p == prec and (side == "right" or prec == P_POW)):
+        return f"({t})"
+    return t
+
+
+def reads_name(loop: ast.stmt, name: str, skip: ast.AST) -> bool:
+    """Does a loop (its condition or its body) read `name` anywhere outside the statement `skip`?"""
+    stack = [x for x in ([loop.test] if isinstance(loop, ast.While) else []) + list(loop.body)
+             if isinstance(x, ast.AST)]
+    while stack:
+        n = stack.pop()
+        if n is skip:
+            continue
+        if isinstance(n, ast.Name) and n.id == name and isinstance(n.ctx, ast.Load):
+            return True
+        if isinstance(n, ast.AugAssign) and isinstance(n.target, ast.Name) and n.target.id == name:
+            return True
+        stack.extend(ast.iter_child_nodes(n))
+    return False
+
+
 def const_str(node: ast.AST) -> Optional[str]:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
@@ -194,16 +233,18 @@ class FunctionConverter:
     `hints` are the final variable types of a previous pass over the same function: a variable
     that widens from Integer to Real late in the body (`balance = balance * 1.05` in a loop) must
     be Real from its first use on, so the builder converts again with the widened types (`widened`
-    tells it whether that is needed).
+    tells it whether that is needed). `hidden_loops` are the for loops (by id) whose variable a
+    previous pass saw read after the loop: they count with a hidden variable (see s_For).
     """
 
     def __init__(self, builder: "ProgramBuilder", module: "ModuleInfo", func: "FuncInfo",
-                 hints: Optional[dict[str, FgType]] = None):
+                 hints: Optional[dict[str, FgType]] = None, hidden_loops: frozenset = frozenset()):
         self.b = builder
         self.m = module
         self.f = func
         self.filename = module.path
         self.hints = hints or {}
+        self.hidden_loops = hidden_loops
         self.vars: dict[str, VarInfo] = {}
         self.ns = Namespace()
         self.ret_var: Optional[VarInfo] = None
@@ -211,12 +252,18 @@ class FunctionConverter:
         self.consumed: set[int] = set(module.skipped_lines)
         self.loop_depth = 0
         self.counter = 0
-        self.active_loop_vars: list[str] = []
-        self.loop_aliases: dict[str, VarInfo] = {}
-        self.loop_var_used_after: set[str] = set()
-        self.reused_loop_vars: set[str] = set()
+        self.loop_stack: list[ast.stmt] = []  # the loops around the statement being converted
         self.loop_counters: list[tuple[VarInfo, ast.AST]] = []
+        # A For that counts with the Python variable leaves Flowgorithm's final counter value in it
+        # (not Python's last value): name -> ids of such loops whose value it may still hold.
+        self.stale: dict[str, set[int]] = {}
+        self.read_after: set[int] = set()  # loops whose variable was read in that state
+        # Statements an expression needs before its own statement (`x = 1 + int(input())`).
+        self.pre: list = []
+        self.effects = 0  # calls with side effects already emitted in place in this statement
+        self.conditional = 0  # inside the right operand of and/or (evaluated only sometimes)
         self.locals: Optional[set[str]] = None
+        self.reads: Optional[set[str]] = None
         self.intdiv_warned = False
         self.widened = False
         self.warnings: list[Warning_] = []
@@ -266,12 +313,12 @@ class FunctionConverter:
             head = header_end(self.m, f.node)
             def_comments, _ = self.take_comments(f.node.lineno, head)  # `def f(a,  # note`
             body_ir = def_comments + self.block(f.body, head + 1, f.node.end_lineno, f.node.col_offset + 1)
-        else:  # module-level program
-            body_ir = self.block(f.body, 1, len(self.m.lines), 0)
-        for var, node in self.loop_counters:
-            if var.type != INTEGER:
-                raise self.err(f"loop variable '{var.py}' is also used as {type_name(var.type)}", node,
-                               "a For counter must stay an integer; use another variable")
+        else:  # module-level program, or the `if __name__ == "__main__":` block
+            start, end, indent = f.span or (1, len(self.m.lines), 0)
+            body_ir = self.block(f.body, start, end, indent)
+        for var, _ in self.loop_counters:
+            if var.type != INTEGER:  # used as a Real elsewhere: the next pass counts with a copy
+                self.widened = True
         for p in f.params:  # callers must see a parameter type that the body widened
             info = self.vars[p.py_name]
             if p.declared is None:
@@ -420,17 +467,77 @@ class FunctionConverter:
                                        "loop condition and return after the loop")
         items = self.normalize_returns(items)
         out: list = []
-        for i, item in enumerate(items):
-            if not isinstance(item, ast.AST):  # Comment / Breakpoint shapes
-                out.append(item)
-            elif isinstance(item, ast.Return):
-                later = ast_only(items[i + 1:])
-                if later:
-                    raise self.err("code after return is unreachable", later[0])
-                out.extend(self.do_return(item))
-            else:
-                out.extend(self.stmt(item))
+        saved = self.pre, self.effects, self.conditional
+        try:
+            for i, item in enumerate(items):
+                if not isinstance(item, ast.AST):  # Comment / Breakpoint shapes
+                    out.append(item)
+                    continue
+                self.pre, self.effects, self.conditional = [], 0, 0
+                if isinstance(item, ast.Return):
+                    later = ast_only(items[i + 1:])
+                    if later:
+                        raise self.err("code after return is unreachable", later[0])
+                    shapes = self.do_return(item)
+                else:
+                    shapes = self.stmt(item)
+                out.extend(self.pre + shapes)  # what the statement's expressions need comes first
+        finally:
+            self.pre, self.effects, self.conditional = saved
         return out
+
+    def take_pre(self) -> list:
+        """The statements hoisted for the current statement, for a statement that places them itself."""
+        pre, self.pre = self.pre, []
+        return pre
+
+    def hoist(self, shapes: list, node: ast.AST, what: str, mark: int) -> None:
+        """Run `shapes` just before the current statement: an expression part that Flowgorithm cannot
+        evaluate in place (an input(), a value used twice, ...). `mark` counts the side effects that
+        were emitted in place before this part: they would now run after it."""
+        if self.conditional:
+            raise self.err(f"{what} on the right of `and` / `or` is not supported", node,
+                           "Python evaluates it only sometimes; use nested if statements")
+        if mark:
+            raise self.err(f"{what} would have to run before a call that Python makes first", node,
+                           "assign the result of that earlier call to a variable first")
+        self.effects = mark
+        self.pre.extend(shapes)
+
+    def has_effects(self, node: ast.AST) -> bool:
+        """Does evaluating `node` call something with side effects (a user function, input, random)?"""
+        for n in ast.walk(node):
+            if not isinstance(n, ast.Call):
+                continue
+            fn = n.func
+            if self.b.resolve_callee(self.m, fn) is not None or isinstance(fn, ast.Name) and fn.id == "input":
+                return True
+            if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
+                if self.b.module_alias_target(self.m, fn.value.id) == "random":
+                    return True
+            elif isinstance(fn, ast.Name) and (self.b.resolve_import(self.m, fn.id) or ("",))[0] == "random":
+                return True
+        return False
+
+    def bool_as_number(self, node: ast.expr) -> ast.expr:
+        """True/False as 1/0 (a Python bool is an int): an If shape before the statement sets a
+        variable that the expression uses instead."""
+        mark = self.effects
+        cond = self.truthy(node)
+        number = self.fresh_var("asNumber", INTEGER)
+        self.hoist([If(cond, [Assign(number.fg, "1")], [Assign(number.fg, "0")])], node,
+                   "a Boolean used as a number", mark)
+        return ast.copy_location(ast.Name(id=number.py, ctx=ast.Load()), node)
+
+    def hoist_value(self, node: ast.expr, base: str, what: str) -> ast.expr:
+        """Evaluate `node` once, into a fresh variable, before the statement; returns a Name for it."""
+        mark = self.effects
+        t = self.infer(node)
+        if t is None or isinstance(t, ArrayT):
+            raise self.err(f"cannot infer the type of {what}", node, "assign it to a variable first")
+        tmp = self.fresh_var(base, t)
+        self.hoist([Assign(tmp.fg, self.text(node))], node, what, mark)
+        return ast.copy_location(ast.Name(id=tmp.py, ctx=ast.Load()), node)
 
     def attach_comments(self, stmts: list, start_line: int, end_line: Optional[int], indent: int,
                         moved: frozenset = frozenset()) -> list:
@@ -641,14 +748,29 @@ class FunctionConverter:
         return self.assign_to(s.target, s.value, s, ann=t)
 
     def s_AugAssign(self, s: ast.AugAssign) -> list:
-        load = self.as_load(s.target)
-        binop = ast.copy_location(ast.BinOp(left=load, op=s.op, right=s.value), s)
+        target = s.target
+        if (isinstance(s.op, (ast.Add, ast.Sub)) and self.infer(s.value) == BOOLEAN
+                and is_numeric(self.infer(self.as_load(target)))):
+            # `count += x > 0` counts: If x > 0 then count = count + 1
+            cond = self.truthy(s.value)
+            one = ast.copy_location(ast.Constant(value=1), s.value)
+            return [If(cond, self.s_AugAssign(ast.copy_location(
+                ast.AugAssign(target=target, op=s.op, value=one), s)), [])]
+        if isinstance(target, ast.Subscript) and has_call(target.slice):
+            # `tally[random.randint(1, 6)] += 1` reads and writes the same element: one index
+            index = self.hoist_value(target.slice, "pos", "the index")
+            target = ast.copy_location(ast.Subscript(value=target.value, slice=index, ctx=ast.Store()), target)
+        binop = ast.copy_location(ast.BinOp(left=self.as_load(target), op=s.op, right=s.value), s)
         ast.fix_missing_locations(binop)
-        return self.assign_to(s.target, binop, s)
+        return self.assign_to(target, binop, s)
 
-    def as_load(self, target: ast.expr) -> ast.expr:
-        node = ast.parse(ast.unparse(target), mode="eval").body
-        return ast.copy_location(node, target)
+    @staticmethod
+    def as_load(target: ast.expr) -> ast.expr:
+        node = copy.deepcopy(target)
+        for n in ast.walk(node):
+            if hasattr(n, "ctx"):
+                n.ctx = ast.Load()
+        return node
 
     def s_If(self, s: ast.If) -> list:
         cond = self.truthy(s.test)
@@ -664,8 +786,11 @@ class FunctionConverter:
             then_end, else_start = else_line - 1, else_line
         else:
             then_end, else_start = orig_end, orig_end + 1
+        before = self.stale_copy()
         then = self.block(s.body, head + 1, then_end, s.col_offset + 1, moved)
+        after_then, self.stale = self.stale, before
         else_ = self.block(s.orelse, else_start, orig_end, s.col_offset + 1, moved) if s.orelse else []
+        self.stale_merge(after_then)
         return [If(cond, then, else_)]
 
     def s_While(self, s: ast.While) -> list:
@@ -677,27 +802,33 @@ class FunctionConverter:
             if body and is_break_if(body[-1]) and not has_break_or_continue(body[:-1]):
                 # Do loop: convert the body first so variables it defines are known to the condition
                 brk = body[-1]
-                inner = self.loop_body(body[:-1], head + 1, brk.lineno - 1, s.col_offset + 1)
+                inner = self.loop_body(s, body[:-1], head + 1, brk.lineno - 1, s.col_offset + 1)
                 tail, _ = self.take_comments(brk.lineno, trailing_end(self.m, s))
                 self.check_compare_types(brk.test)
                 cond = self.negate(brk.test)
-                return [Do(cond, inner + tail)]
+                return [Do(cond, inner + tail + self.take_pre())]  # the condition is tested last
             if body and is_break_if(body[0]) and not has_break_or_continue(body[1:]):
                 brk = body[0]
                 self.check_compare_types(brk.test)
                 cond = self.negate(brk.test)
+                pre = self.take_pre()
                 brk_end = trailing_end(self.m, brk)
                 lead, _ = self.take_comments(head + 1, brk_end)
-                inner = self.loop_body(body[1:], brk_end + 1, s.end_lineno, s.col_offset + 1)
-                return [While(cond, lead + inner)]
+                before = self.stale_copy()
+                inner = self.loop_body(s, body[1:], brk_end + 1, s.end_lineno, s.col_offset + 1)
+                self.stale_merge(before)
+                return pre + [While(cond, lead + inner + copy.deepcopy(pre))]
             raise self.err("`while True` needs a single `if cond: break` as the first statement "
                            "(-> While loop) or the last statement (-> Do loop) of its body", s)
         if has_break_or_continue(body):
             raise self.err("break/continue inside a while loop is not supported", s,
                            "fold the exit condition into the loop condition")
         cond = self.truthy(s.test)
-        inner = self.loop_body(s.body, head + 1, s.end_lineno, s.col_offset + 1)
-        return [While(cond, inner)]
+        pre = self.take_pre()  # what the condition needs runs before the loop and after each pass
+        before = self.stale_copy()
+        inner = self.loop_body(s, s.body, head + 1, s.end_lineno, s.col_offset + 1)
+        self.stale_merge(before)
+        return pre + [While(cond, inner + copy.deepcopy(pre))]
 
     def check_compare_types(self, test: ast.expr) -> None:
         if isinstance(test, ast.Compare):
@@ -706,12 +837,47 @@ class FunctionConverter:
                 if lt is not None and rt is not None and not self.compatible(lt, rt):
                     raise self.err(f"comparing {type_name(lt)} with {type_name(rt)}", test)
 
-    def loop_body(self, stmts: list, start: int, end: Optional[int], indent: int = 0) -> list:
+    def loop_body(self, loop: ast.stmt, stmts: list, start: int, end: Optional[int], indent: int = 0) -> list:
         self.loop_depth += 1
+        self.loop_stack.append(loop)
         try:
             return self.block(stmts, start, end, indent)
         finally:
+            self.loop_stack.pop()
             self.loop_depth -= 1
+
+    def stale_copy(self) -> dict[str, set[int]]:
+        return {k: set(v) for k, v in self.stale.items()}
+
+    def stale_merge(self, other: dict[str, set[int]]) -> None:
+        """Join two paths (if branches, or a loop body that may not run): stale on either is stale."""
+        for k, v in other.items():
+            self.stale.setdefault(k, set()).update(v)
+
+    def read_names(self) -> set[str]:
+        """Names whose value the function reads somewhere (`x += 1` reads x too)."""
+        if self.reads is None:
+            self.reads = set()
+            for st in ast_only(self.f.body):
+                for n in ast.walk(st):
+                    if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+                        self.reads.add(n.id)
+                    elif isinstance(n, ast.AugAssign) and isinstance(n.target, ast.Name):
+                        self.reads.add(n.target.id)
+        return self.reads
+
+    def counter_is_direct(self, name: str, s: ast.For) -> bool:
+        """Can the For shape count with the Python loop variable itself? Flowgorithm's For uses its
+        variable as the counter, so not when the body assigns it (that would change the iteration,
+        nested loops included), when a later read needs Python's last value (Flowgorithm's counter
+        ends past it), when the variable is not an Integer, or when an enclosing loop reads it
+        outside this loop (a later pass of that loop would see the counter's final value)."""
+        if id(s) in self.hidden_loops or name in assigned_names(s.body):
+            return False
+        hint, info = self.hints.get(name), self.var_info(name)
+        if hint not in (None, INTEGER) or (info is not None and info.type not in (None, INTEGER)):
+            return False
+        return not any(reads_name(outer, name, s) for outer in self.loop_stack)
 
     def s_For(self, s: ast.For) -> list:
         if s.orelse:
@@ -747,71 +913,33 @@ class FunctionConverter:
                 raise self.err(f"cannot iterate over '{seq.id}' of type {type_name(seq_info.type)}", s)
             start, direction, step = "0", "inc", "1"
             end = f"{'Size' if isinstance(seq_info.type, ArrayT) else 'Len'}({seq_info.fg}) - 1"
-        if counter_name is not None:
-            self.check_loop_var_untouched(counter_name, s)
 
-        # Flowgorithm's For counts with the variable itself, so a nested loop must not reuse the
-        # counter of an enclosing loop: it gets its own variable while it runs.
-        aliased: list[str] = []
-        saved = dict(self.loop_aliases)
-
-        def bind(name: str, t: str, base: str) -> VarInfo:
-            if name in self.active_loop_vars:
-                var = self.fresh_var(legalize(name) + base, t)
-                self.warn(f"inner loop variable '{name}' renamed to '{var.fg}' (an enclosing loop counts "
-                          f"with '{name}')", s)
-                self.loop_aliases[name] = var
-                aliased.append(name)
-                return var
-            self.loop_aliases.pop(name, None)
-            return self.var_assign(name, t, s)
-
-        if counter_name is not None:
-            counter = bind(counter_name, INTEGER, "Inner")
-            if counter_name not in aliased:
-                if counter.type != INTEGER:
-                    raise self.err(f"loop variable '{counter_name}' is also used as {type_name(counter.type)}", s,
-                                   "a For counter must stay an integer; use another variable")
-                self.loop_counters.append((counter, s))
-        else:
-            counter = self.fresh_var(legalize(elem_name) + "Index", INTEGER)
+        before = self.stale_copy()
         prologue: list = []
-        if elem_name is not None:
+        direct = False
+        if counter_name is None:  # for x in xs: count with an index of its own
+            counter = self.fresh_var(legalize(elem_name) + "Index", INTEGER)
+        elif self.counter_is_direct(counter_name, s):
+            counter = self.var_assign(counter_name, INTEGER, s)
+            self.loop_counters.append((counter, s))
+            direct = True
+        elif counter_name in self.read_names():
+            # count with a hidden variable; the Python name gets its value at the top of every pass
+            counter = self.fresh_var(legalize(counter_name) + "Counter", INTEGER)
+            prologue.append(Assign(self.var_assign(counter_name, INTEGER, s).fg, counter.fg))
+        else:  # never read (`for _ in range(3)`): a counter of its own will do
+            counter = self.fresh_var(legalize(counter_name) + "Counter", INTEGER)
+        if elem_name is not None and elem_name in self.read_names():
             if isinstance(seq_info.type, ArrayT):
                 elem_text, elem_type = f"{seq_info.fg}[{counter.fg}]", seq_info.type.elem
             else:
                 elem_text, elem_type = f"Char({seq_info.fg}, {counter.fg})", STRING
-            elem = bind(elem_name, elem_type, "Item")
-            prologue.append(Assign(elem.fg, elem_text))
-        if counter_name is not None:
-            self.active_loop_vars.append(counter_name)
-        try:
-            body = prologue + self.loop_body(s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
-        finally:
-            if counter_name is not None:
-                self.active_loop_vars.pop()
-            self.loop_aliases = saved
-        for name in aliased:  # Python leaves the inner loop's last value in the name; Flowgorithm cannot
-            self.reused_loop_vars.add(name)
-        for name in list(self.reused_loop_vars):
-            if name not in self.active_loop_vars:
-                self.reused_loop_vars.discard(name)
-        if counter_name is not None and counter_name not in aliased:
-            self.loop_var_used_after.add(counter_name)
+            prologue.append(Assign(self.var_assign(elem_name, elem_type, s).fg, elem_text))
+        body = prologue + self.loop_body(s, s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
+        self.stale_merge(before)  # the body may not run at all
+        if direct:
+            self.stale[counter_name] = {id(s)}
         return [For(counter.fg, start, end, direction, step, body)]
-
-    def check_loop_var_untouched(self, name: str, loop: ast.For) -> None:
-        """A For counter must not be assigned in the loop body (nested loops reusing it are fine:
-        they get their own counter)."""
-        nested_targets = {id(n) for st in loop.body for f in ast.walk(st) if isinstance(f, ast.For)
-                          for n in ast.walk(f.target)}
-        for st in loop.body:
-            for n in ast.walk(st):
-                if (isinstance(n, ast.Name) and n.id == name and isinstance(n.ctx, ast.Store)
-                        and id(n) not in nested_targets):
-                    raise self.err(f"the loop variable '{name}' is modified inside its for loop", n,
-                                   "Flowgorithm's For counter would change the iteration count; "
-                                   "use a while loop or another variable")
 
     def range_bounds(self, call: ast.Call, s: ast.For) -> tuple[str, str, str, str]:
         args = call.args
@@ -825,7 +953,7 @@ class FunctionConverter:
             raise self.err("range() takes 1 to 3 arguments", call)
         direction, step = "inc", "1"
         if step_node is not None:
-            sv = self.int_literal(step_node)
+            sv = self.int_literal(step_node)  # a literal or a module constant: its sign is known
             if sv is None and isinstance(step_node, ast.UnaryOp) and isinstance(step_node.op, ast.USub):
                 direction, step = "dec", self.text(step_node.operand)
             elif sv is None:
@@ -833,41 +961,50 @@ class FunctionConverter:
                 step = self.text(step_node)
             elif sv == 0:
                 raise self.err("range() step must not be zero", step_node)
-            elif sv < 0:
-                direction, step = "dec", str(-sv)
+            elif sv < 0:  # Flowgorithm's step is positive: `-STEP` keeps a constant's name
+                direction = "dec"
+                step = str(-sv) if self.literal_int(step_node) is not None else f"-{self.sub(step_node, P_UNARY)}"
             else:
-                step = str(sv)
+                step = self.text(step_node)
         start = self.text(start_node) if start_node is not None else "0"
         if not is_numeric(self.infer(stop_node)) and self.infer(stop_node) is not None:
             raise self.err("range() bound must be an integer expression", stop_node)
         end = self.minus_one(stop_node) if direction == "inc" else self.plus_one(stop_node)
         return start, end, direction, step
 
-    def int_literal(self, node: ast.expr) -> Optional[int]:
+    @staticmethod
+    def literal_int(node: ast.expr) -> Optional[int]:
+        """The value of an integer literal (`3`, `-3`), else None."""
         if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
             return node.value
         if (isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub)
                 and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, int)
                 and not isinstance(node.operand.value, bool)):
             return -node.operand.value
-        if isinstance(node, (ast.Name, ast.Attribute)) and not (isinstance(node, ast.Name) and self.var_info(node.id)):
+        return None
+
+    def int_literal(self, node: ast.expr) -> Optional[int]:
+        """The value of an integer literal or of an integer module constant (to decide things such
+        as a step's sign; the text keeps a constant's name)."""
+        v = self.literal_int(node)
+        if v is None and isinstance(node, (ast.Name, ast.Attribute)):
             const = self.module_constant(node)
             if const is not None and const[1] == INTEGER:
                 try:
                     return int(const[2])
                 except ValueError:  # pragma: no cover
                     return None
-        return None
+        return v
 
     def add_literal(self, node: ast.expr, k: int) -> str:
         """Text of `node + k` with literal folding (k may be negative)."""
         if k == 0:
             return self.text(node)
-        v = self.int_literal(node)
+        v = self.literal_int(node)
         if v is not None:
             return str(v + k)
         if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
-            c = self.int_literal(node.right)
+            c = self.literal_int(node.right)
             if c is not None:
                 total = (c if isinstance(node.op, ast.Add) else -c) + k
                 return self.add_literal(node.left, total)
@@ -882,10 +1019,10 @@ class FunctionConverter:
 
     def minus_expr(self, b: ast.expr, a: ast.expr, k: int = 0) -> str:
         """Text of `b - a + k` with literal folding."""
-        av = self.int_literal(a)
+        av = self.literal_int(a)
         if av is not None:
             return self.add_literal(b, k - av)
-        bv = self.int_literal(b)
+        bv = self.literal_int(b)
         if bv is not None and av is not None:  # pragma: no cover
             return str(bv - av + k)
         base = f"{self.sub(b, P_ADD)} - {self.sub(a, P_ADD, 'right')}"
@@ -922,8 +1059,12 @@ class FunctionConverter:
         if isinstance(node, ast.BoolOp):
             word, p = ("and", P_AND) if isinstance(node.op, ast.And) else ("or", P_OR)
             parts = []
-            for v in node.values:
-                t, vp = self.truthy_expr(v)
+            for k, v in enumerate(node.values):
+                self.conditional += k > 0
+                try:
+                    t, vp = self.truthy_expr(v)
+                finally:
+                    self.conditional -= k > 0
                 parts.append(f"({t})" if vp < p else t)
             return f" {word} ".join(parts), p
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
@@ -1068,29 +1209,33 @@ class FunctionConverter:
                 if isinstance(lst, ast.List):
                     if len(lst.elts) != 1:
                         raise self.err("array creation needs exactly one fill value: `[0] * n`", node)
-                    return ("fill", lst.elts[0], n)
+                    return ("fill", lst.elts[0], n, lst is value.left)
         if isinstance(value, ast.List):
             if not value.elts:
                 raise self.err("empty lists are not supported; Flowgorithm arrays have a fixed size", node,
                                "create it with `[0] * n`")
-            return ("literal", value.elts, None)
+            return ("literal", value.elts, None, True)
         if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "list":
             raise self.err("list() is not supported; create arrays with `[0] * n`", node)
         return None
 
     def declare_array(self, py_name: str, spec, node: ast.stmt, ann: FgType) -> list:
-        kind, a, n = spec
-        if py_name in self.vars or py_name in self.loop_aliases:
+        kind, a, n = spec[:3]
+        if py_name in self.vars:
             raise self.err(f"'{py_name}' is already defined; arrays cannot be re-created", node)
         if any(is_list_display(e) for e in ([a] if kind == "fill" else a)):
             raise self.err("nested lists are not supported (Flowgorithm arrays are 1-D)", node,
                            "use one array per row, or one array of rows * columns elements")
         if kind == "fill":
+            if has_call(a) and spec[3]:  # `[random.randint(1, 6)] * n` repeats ONE value
+                a = self.hoist_value(a, "fill", "the fill value")
             elem_type = self.infer(a)
             size_t = self.infer(n)
             if size_t is not None and size_t != INTEGER:
                 raise self.err("array size must be an integer expression", n)
             size = self.text(n)
+            if has_call(a):  # `n * [f()]`: the size comes first
+                a = self.hoist_value(a, "fill", "the fill value")
         else:
             elem_type = None
             for e in a:
@@ -1265,8 +1410,7 @@ class FunctionConverter:
 
     # ------------------------------------------------------------- variables
     def var_info(self, py: str) -> Optional[VarInfo]:
-        """The variable a name refers to right now (inner loops may count with a renamed copy)."""
-        return self.loop_aliases.get(py) or self.vars.get(py)
+        return self.vars.get(py)
 
     def is_local(self, py: str) -> bool:
         """Assigned somewhere in this function, so (as in Python) never a module-level name here."""
@@ -1301,6 +1445,7 @@ class FunctionConverter:
             raise self.err(f"cannot assign to constant '{py}'", node)
         if info.is_array:
             raise self.err(f"cannot reassign array '{py}'", node)
+        self.stale.pop(py, None)
         if info.declared is not None:
             if declared is not None and declared != info.declared:
                 raise self.err(f"'{py}' is annotated twice, as {py_type(info.declared)} and {py_type(declared)}", node)
@@ -1335,19 +1480,9 @@ class FunctionConverter:
 
     def lookup(self, name: ast.Name) -> VarInfo:
         """Variable (or module constant) referenced by a Name in a load context."""
-        alias = self.loop_aliases.get(name.id)
-        if alias is not None:
-            return alias
-        if name.id in self.reused_loop_vars:
-            raise self.err(f"'{name.id}' is read after an inner loop that reused it as its loop variable", name,
-                           "Python leaves the inner loop's last value in it, Flowgorithm the outer loop's "
-                           "counter; give one of the loops another variable")
         info = self.vars.get(name.id)
         if info is not None:
-            if name.id in self.loop_var_used_after and name.id not in self.active_loop_vars:
-                self.loop_var_used_after.discard(name.id)
-                self.warn(f"'{name.id}' is read after its for loop: Flowgorithm's counter may end one "
-                          f"step past the last value, unlike Python", name)
+            self.read_after.update(self.stale.get(name.id, ()))  # the next pass counts with a copy
             return info
         if self.is_local(name.id):
             raise self.err(f"'{name.id}' is not defined before use", name)
@@ -1378,10 +1513,7 @@ class FunctionConverter:
         return self.expr(node)[0]
 
     def sub(self, node: ast.expr, prec: int, side: str = "left") -> str:
-        t, p = self.expr(node)
-        if p < prec or (p == prec and (side == "right" or prec == P_POW)):
-            return f"({t})"
-        return t
+        return paren(self.expr(node), prec, side)
 
     def expr(self, node: ast.expr) -> tuple[str, int]:
         handler = getattr(self, "e_" + type(node).__name__, None)
@@ -1396,19 +1528,18 @@ class FunctionConverter:
         if isinstance(v, int):
             return str(v), P_ATOM
         if isinstance(v, float):
-            return self.float_text(v, n), P_ATOM
+            return self.float_text(v, n)
         if isinstance(v, str):
             return self.str_lit(v)
         if v is None:
             raise self.err("None has no Flowgorithm equivalent", n)
         raise self.err(f"unsupported literal {v!r}", n)
 
-    def float_text(self, v: float, n: ast.AST) -> str:
+    def float_text(self, v: float, n: ast.AST) -> tuple[str, int]:
         try:
             return float_literal(v)
         except ValueError as e:
-            raise self.err(str(e), n, "Flowgorithm has no exponent notation; compute it (e.g. 10 ^ -20) "
-                           "instead") from None
+            raise self.err(str(e), n) from None
 
     def e_Name(self, n: ast.Name) -> tuple[str, int]:
         if self.var_info(n.id) is None and not self.is_local(n.id):
@@ -1442,9 +1573,14 @@ class FunctionConverter:
     def e_BinOp(self, n: ast.BinOp) -> tuple[str, int]:
         op = type(n.op)
         lt, rt = self.infer(n.left), self.infer(n.right)
-        if BOOLEAN in (lt, rt) and op is not ast.Add or (op is ast.Add and BOOLEAN in (lt, rt) and STRING not in (lt, rt)):
-            raise self.err("arithmetic on a Boolean value has no Flowgorithm equivalent", n,
-                           "Flowgorithm does not treat true/false as 1/0; use an if statement to count")
+        if BOOLEAN in (lt, rt) and not (op is ast.Add and STRING in (lt, rt)):
+            # `total += a > b`: Python counts True as 1; Flowgorithm needs an If that picks 1 or 0
+            left = self.bool_as_number(n.left) if lt == BOOLEAN else n.left
+            if rt == BOOLEAN and lt != BOOLEAN and self.has_effects(n.left):
+                raise self.err("a Boolean used as a number would have to run before a call that Python "
+                               "makes first", n.right, "assign the earlier call's result to a variable first")
+            right = self.bool_as_number(n.right) if rt == BOOLEAN else n.right
+            return self.expr(ast.copy_location(ast.BinOp(left=left, op=n.op, right=right), n))
         if op in (ast.FloorDiv, ast.Mod) and not self.intdiv_warned and lt != STRING:
             if self.int_literal(n.left) is None or self.int_literal(n.right) is None:
                 self.intdiv_warned = True
@@ -1496,22 +1632,22 @@ class FunctionConverter:
         return self.truthy_expr(n)
 
     def e_Compare(self, n: ast.Compare) -> tuple[str, int]:
-        if len(n.ops) > 1:
-            for middle in n.comparators[:-1]:
-                if has_call(middle):
-                    raise self.err("the middle operand of a chained comparison would be evaluated twice", n,
-                                   "assign it to a variable first: `x = ...` then `if lo <= x <= hi:`")
-        parts = []
-        left = n.left
-        for op, right in zip(n.ops, n.comparators):
+        for op in n.ops:
             if type(op) not in COMPARE_OP:
                 raise self.err(f"comparison '{type(op).__name__}' is not supported", n,
                                "Flowgorithm has no `in`; compare against each value with == / or")
-            lt, rt = self.infer(left), self.infer(right)
+        operands = [n.left] + list(n.comparators)
+        types = [self.infer(x) for x in operands]
+        for (lt, rt) in zip(types, types[1:]):
             if lt is not None and rt is not None and not self.compatible(lt, rt):
                 raise self.err(f"comparing {type_name(lt)} with {type_name(rt)}", n)
-            parts.append(f"{self.sub(left, P_REL)} {COMPARE_OP[type(op)]} {self.sub(right, P_REL, 'right')}")
-            left = right
+        texts = []  # in Python's order of evaluation
+        for k, x in enumerate(operands):
+            if 0 < k < len(operands) - 1 and has_call(x):  # `lo <= f() <= hi` uses f() twice: once
+                x = self.hoist_value(x, "value", "the middle of a chained comparison")
+            texts.append(self.expr(x))
+        parts = [f"{paren(a, P_REL)} {COMPARE_OP[type(op)]} {paren(b, P_REL, 'right')}"
+                 for op, a, b in zip(n.ops, texts, texts[1:])]
         if len(parts) == 1:
             return parts[0], P_REL
         return " and ".join(parts), P_AND
@@ -1583,6 +1719,13 @@ class FunctionConverter:
         raise self.err("conditional expressions are not supported", n, "use an if statement")
 
     def e_Call(self, n: ast.Call) -> tuple[str, int]:
+        inp = self.match_input(n)
+        if inp is not None:  # `total += int(input("n? "))`: read into a variable first
+            mark = self.effects
+            prompt, t = inp
+            answer = self.fresh_var("answer", t)
+            self.hoist(self.prompt_output(prompt) + [Input(answer.fg)], n, "input()", mark)
+            return answer.fg, P_ATOM
         fn = n.func
         fi = self.b.resolve_callee(self.m, fn)
         if fi is not None:
@@ -1643,6 +1786,7 @@ class FunctionConverter:
                 raise self.err(f"parameter '{p.py_name}' of {fi.py_name}() is {py_type(p.type)} but gets "
                                f"{py_type(at)}", a, hint)
             texts.append(self.text(a))
+        self.effects += 1
         return f"{fi.fg_name}({', '.join(texts)})"
 
     def library_call(self, module: str, name: str, args: list, n: ast.Call) -> tuple[str, int]:
@@ -1659,21 +1803,19 @@ class FunctionConverter:
                 raise self.err("math.ceil has no Flowgorithm equivalent", n, "use Int(x) + 1 after a check")
             raise self.err(f"math.{name} is not supported", n)
         if module == "random":
-            if name == "randint" and len(args) == 2:
+            self.effects += 1  # Random() draws the next number
+            if name in ("randint", "randrange") and len(args) == 2:
                 a, b = args
-                if self.int_literal(a) == 0:
-                    return f"Random({self.plus_one(b)})", P_ATOM
-                if has_call(a):
-                    raise self.err("the lower bound of randint() would be evaluated twice", n,
-                                   "assign it to a variable first")
-                return f"{self.sub(a, P_ADD)} + Random({self.minus_expr(b, a, 1)})", P_ADD
+                if self.literal_int(a) == 0:
+                    return f"Random({self.plus_one(b) if name == 'randint' else self.text(b)})", P_ATOM
+                if has_call(a):  # `a + Random(b - a + 1)` uses the lower bound twice
+                    self.effects -= 1
+                    a = self.hoist_value(a, "low", f"the lower bound of {name}()")
+                    self.effects += 1
+                low = self.sub(a, P_ADD)
+                return f"{low} + Random({self.minus_expr(b, a, 1 if name == 'randint' else 0)})", P_ADD
             if name == "randrange" and len(args) == 1:
                 return f"Random({self.text(args[0])})", P_ATOM
-            if name == "randrange" and len(args) == 2:
-                a, b = args
-                if self.int_literal(a) == 0:
-                    return f"Random({self.text(b)})", P_ATOM
-                return f"{self.sub(a, P_ADD)} + Random({self.minus_expr(b, a)})", P_ADD
             if name == "random" and not args:
                 return "Random(1000000) / 1000000.0", P_MUL
             raise self.err(f"random.{name} is not supported", n, "use random.randint(a, b) or random.randrange(n)")
@@ -1700,6 +1842,8 @@ class FunctionConverter:
         if name == "int":
             a = one()
             t = self.infer(a)
+            if t == BOOLEAN:  # int(x > 0) is 1 or 0
+                return self.expr(self.bool_as_number(a))
             if t == STRING:
                 return f"ToInteger({self.text(a)})", P_ATOM
             if t == REAL:
@@ -1807,6 +1951,7 @@ class FunctionConverter:
             op = type(n.op)
             if op is ast.Add and (lt == STRING or rt == STRING):
                 return STRING
+            lt, rt = (INTEGER if t == BOOLEAN else t for t in (lt, rt))  # True + 1 == 2
             if op is ast.Div:
                 return REAL
             if op is ast.FloorDiv:

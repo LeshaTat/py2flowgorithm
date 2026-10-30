@@ -46,6 +46,8 @@ class FuncInfo:
     is_main: bool = False
     converted: Optional[Function] = None
     declared_ret: FgType = None  # VOID, the annotation, or None when inferred
+    script: bool = False  # Main made of a module's top-level code (its "constants" are statements)
+    span: Optional[tuple[int, int, int]] = None  # first line, last line, indent of a def-less body
 
     @property
     def lineno(self) -> int:
@@ -244,6 +246,8 @@ class ProgramBuilder:
                 for n in s.body:
                     if isinstance(n, (ast.Import, ast.ImportFrom)):
                         self.register_import(m, n)
+                for n in assigned_names(s.body):  # module-level variables, as far as functions go
+                    bindings[n] = bindings.get(n, 0) + 2
             else:
                 m.toplevel.append(s)
                 self.register_constant(m, s)
@@ -356,9 +360,8 @@ class ProgramBuilder:
             return
         try:
             text = literal_text(v)
-        except ValueError as e:
-            raise ConvertError(str(e), value, "Flowgorithm has no exponent notation; compute the value "
-                               "(e.g. 10 ^ -20) instead", m.path) from None
+        except ValueError as e:  # inf / nan
+            raise ConvertError(str(e), value, filename=m.path) from None
         m.constants[target] = (value, literal_type(v), text)
 
     # ------------------------------------------------------------ resolution
@@ -453,7 +456,7 @@ class ProgramBuilder:
             return None
         # In a module-level program the "constants" of that module are ordinary statements of Main.
         cur = self.current
-        if cur is not None and cur.is_main and cur.node is None and mod is cur.module:
+        if cur is not None and cur.script and mod is cur.module:
             return None
         return const
 
@@ -548,7 +551,11 @@ class ProgramBuilder:
         return None
 
     def guard_entry(self, m: ModuleInfo) -> Optional[FuncInfo]:
-        """The function that the `if __name__ == "__main__":` block runs (usually main())."""
+        """What the `if __name__ == "__main__":` block runs: the function it only calls (usually
+        main()), or, when it does more than that, the block itself as a function of its own."""
+        if m.guard.orelse:
+            raise ConvertError("an else branch on `if __name__ == \"__main__\":` is not supported",
+                               m.guard.orelse[0], filename=m.path)
         target = None
         for s in m.guard.body:
             if isinstance(s, (ast.Import, ast.ImportFrom, ast.Pass)) or (
@@ -556,13 +563,10 @@ class ProgramBuilder:
                 continue
             func = self.entry_call_target(s)
             fi = self.resolve_callee(m, func) if func is not None else None
-            if fi is None or (target is not None and fi is not target):
-                raise ConvertError("only a call of main() is supported inside `if __name__ == \"__main__\":`", s,
-                                   "move this code into main()", m.path)
+            if fi is None or target is not None:  # more than one call: the block becomes Main
+                return FuncInfo("main", m, None, list(m.guard.body), None, [], VOID, declared_ret=VOID,
+                                span=(header_end(m, m.guard) + 1, m.guard.end_lineno, m.guard.col_offset + 1))
             target = fi
-        if m.guard.orelse:
-            raise ConvertError("an else branch on `if __name__ == \"__main__\":` is not supported",
-                               m.guard.orelse[0], filename=m.path)
         return target
 
     def entry_function(self, entry: ModuleInfo) -> FuncInfo:
@@ -576,7 +580,16 @@ class ProgramBuilder:
                 raise ConvertError("no main() function and no module-level code found", None,
                                    "write a `def main():` and call it under `if __name__ == \"__main__\":`",
                                    entry.path)
-            return FuncInfo("main", entry, None, list(entry.toplevel), None, [], VOID, declared_ret=VOID)
+            return FuncInfo("main", entry, None, list(entry.toplevel), None, [], VOID, declared_ret=VOID,
+                            script=True)
+        if main_fi.node is None:  # the guard block itself
+            name = "the `__name__` block"
+            for s in entry.toplevel:
+                if not self.is_constant_stmt(entry, s):
+                    raise ConvertError("module-level code is not supported next to an "
+                                       "`if __name__ == \"__main__\":` block", s,
+                                       "move it into the block, or make it a literal constant", entry.path)
+            return main_fi
         name = main_fi.py_name
         if main_fi.ignored:
             raise ConvertError(f"{name}() is the program's entry point but is marked `fg: ignore`", main_fi.node,
@@ -672,20 +685,22 @@ class ProgramBuilder:
 
     def convert_function(self, fi: FuncInfo) -> Function:
         """Convert one function; again with the final variable types when a variable widened from
-        Integer to Real after it had been used (its earlier uses must see the Real)."""
+        Integer to Real after it had been used (its earlier uses must see the Real), and with a
+        hidden counter for each for loop whose variable turned out to be read after the loop."""
         hints: dict[str, FgType] = {}
+        hidden: frozenset = frozenset()
         for _ in range(MAX_PASSES):
-            conv = FunctionConverter(self, fi.module, fi, hints)
-            if fi.node is None:  # module-level program: comments of/inside defs belong to them
+            conv = FunctionConverter(self, fi.module, fi, hints, hidden)
+            if fi.script:  # module-level program: comments of/inside defs belong to them
                 for s in fi.module.tree.body:
                     if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                         conv.consumed.update(self.def_lines(fi.module, s))
                     elif isinstance(s, (ast.Import, ast.ImportFrom)) or is_main_guard(s):
                         conv.consumed.update(range(s.lineno, (s.end_lineno or s.lineno) + 1))
             fn = conv.convert()
-            if not conv.widened:
+            if not conv.widened and conv.read_after <= hidden:
                 break
-            hints = conv.type_hints()
+            hints, hidden = conv.type_hints(), hidden | conv.read_after
         self.warnings.extend(conv.warnings)
         return fn
 
