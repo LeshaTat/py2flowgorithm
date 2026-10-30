@@ -141,7 +141,7 @@ do the same thing:
 * `Input(...)` names the type of the variable it reads into (`x = Input(float)` for a Real `x`),
   because Flowgorithm's Input reads whatever its variable holds.
 * Arrays have a fixed size and start out as 0 / 0.0 / "" / false; arrays are not copied or
-  returned.
+  returned, and are made once, outside loops (Flowgorithm declares them where they are made).
 * There is no `//` (write `Int(a / b)`), no f-strings (pass several values to `Output`), no
   `print`/`input`/`len`/`int`/`str` (use the library), no methods, slices, tuples, dictionaries,
   classes, `import`s other than the library, and no code at the top level other than constants.
@@ -180,6 +180,10 @@ whole runs with scripted answers by patching `builtins.input` (what `Input` read
 * The browser viewer [FlowgorithmJS](https://andreaval.github.io/FlowgorithmJS/drawLocal.html)
   opens the generated files too; Flowgorithm itself (Windows, or the macOS port
   [jostasik/Flowgorithm-macOS](https://github.com/jostasik/Flowgorithm-macOS)) is the final proof.
+* `docs/probe/` — four small flowcharts that show, run once in real Flowgorithm, the run-time
+  rules the library and `fprg_run.py` had to guess (how Reals are printed, `ToFixed` rounding,
+  `%`, `and`/`or`, String order, the For counter, array start values, Integer size). Its README
+  says what each output line means.
 
 ## The examples
 

@@ -1,0 +1,59 @@
+What fprg_run (and the flowgorithm library) assume each probe prints.
+
+== probe.fprg
+A1 2.3333333333333335
+A2 0.30000000000000004
+A3 0.6666666666666666
+A4 1E+15
+A5 1.23456789E+15
+A6 1
+A7 1E-05
+B1 2.2
+B2 2
+B3 0.12
+B4 2.67
+B5 1.00
+C1 -1
+C2 1
+C3 -1.5
+D1 64
+D2 4
+D3 0.5
+E1 true
+E2 false
+E3 true
+E4 false
+true
+F1 true
+F2 true
+G1 before
+G1 after
+G2 before
+G2 after
+H1 4
+H2 3
+H3 0
+I1 -3
+I2 -3
+I3 3
+I4 42
+I5 -1
+Z end
+
+== probe-array-start.fprg
+J1 0
+J2 0
+J3 []
+J4 false
+Z end
+
+== probe-redeclare.fprg
+K1 round 1: row[0] set to 5
+K2 round 2: row[0] is 0
+Z end
+
+== probe-overflow.fprg
+L1 2147483648
+L2 9223372036854775807
+L3 9223372036854775808
+Z end

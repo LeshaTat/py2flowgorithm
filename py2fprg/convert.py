@@ -281,6 +281,7 @@ class FunctionConverter:
         self.ret_var: Optional[VarInfo] = None
         self.ret_type: FgType = func.ret_type
         self.loop_vars: list[str] = []  # variables of the enclosing for loops
+        self.loop_depth = 0  # how many loops the statement being converted is in
         # loop variables whose for loop has ended (on some path) and that got no new value since, with
         # the line of that loop: they hold Flowgorithm's final counter value, one step past Python's
         self.after_loop: dict[str, int] = {}
@@ -610,6 +611,10 @@ class FunctionConverter:
     def new_array(self, name: str, value: ast.expr, s: ast.stmt, ann: FgType) -> list:
         if name in self.vars or self.b.constant(name) is not None:
             raise self.err(f"'{name}' already exists; an array is made once", s)
+        if self.loop_depth:
+            raise self.err(f"the array '{name}' is made inside a loop", s,
+                           "make it once before the loop (Flowgorithm declares it there); to start over in "
+                           "each round, set its elements back in a for loop")
         if ann is not None and not isinstance(ann, ArrayT):
             raise self.err(f"'{name}' is annotated {type_name(ann)} but gets an array", s)
         if isinstance(value, ast.List):  # xs = [3, 1, 2]
@@ -689,17 +694,25 @@ class FunctionConverter:
                 raise self.err("`while True:` is Flowgorithm's Do loop: its last statement is `if condition: break`",
                                s, "for a loop that tests first, write `while condition:`")
             brk = s.body[-1]
-            body = self.block(s.body[:-1], head + 1, brk.lineno - 1, col)
+            body = self.loop_block(s.body[:-1], head + 1, brk.lineno - 1, col)
             tail = self.take_comments(brk.lineno, trailing_end(self.m, s))[0]
             cond = self.negate(brk.test)
             self.check_next_round(s)
             return [Do(cond, body + tail)]
         cond = self.condition(s.test)
         before = dict(self.after_loop)
-        body = self.block(s.body, head + 1, s.end_lineno, col)
+        body = self.loop_block(s.body, head + 1, s.end_lineno, col)
         self.check_next_round(s, s.test)
         self.after_loop = {**before, **self.after_loop}
         return [While(cond, body)]
+
+    def loop_block(self, stmts: list, start_line: int, end_line: Optional[int], indent: int) -> list:
+        """The body of a loop: statements that run again and again."""
+        self.loop_depth += 1
+        try:
+            return self.block(stmts, start_line, end_line, indent)
+        finally:
+            self.loop_depth -= 1
 
     def check_next_round(self, loop: ast.stmt, test: Optional[ast.expr] = None) -> None:
         """A loop's next round starts with the variables as its body left them: one that an inner for
@@ -764,7 +777,7 @@ class FunctionConverter:
         before = dict(self.after_loop)
         self.loop_vars.append(name)
         try:
-            body = self.block(s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
+            body = self.loop_block(s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
         finally:
             self.loop_vars.pop()
         self.check_next_round(s)

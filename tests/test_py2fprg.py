@@ -216,7 +216,8 @@ class StatementTest(unittest.TestCase):
         self.assertIn('<input variable="xs[0]"/>', body)
         for code, msg in {"xs = [1] * 3": "starts out as 0", "xs = [0] * 3\nxs[0] = 0.5": "is an Integer but gets",
                           "xs = [0] * 3\nOutput(xs[-1])": "no negative indexes", "xs = [0] * 3\nys = xs": "cannot be copied",
-                          "xs = []": "needs a size", "s = \"ab\"\nOutput(s[0])": "Char(text, i)"}.items():
+                          "xs = []": "needs a size", "s = \"ab\"\nOutput(s[0])": "Char(text, i)",
+                          "for k in range(2):\n    row = [0] * 3": "the array 'row' is made inside a loop"}.items():
             with self.subTest(code=code):
                 self.assertIn(msg, error_of(program(code)))
 
