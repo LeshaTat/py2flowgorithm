@@ -31,6 +31,15 @@ Rules that changed while fixing (also in the README):
   a loop condition, before the loop and again at the end of its body.
 * A for loop counts with a hidden `<name>Counter` when Flowgorithm's For could not use the Python
   variable itself (assigned in the body, read after the loop, or used as a Real).
+* `break`, `continue` and `return` work anywhere in a loop (flags in the loop conditions; a `for`
+  with an early exit becomes a While), `for/while ... else` too; `while True: A; if c: break; B`
+  becomes a priming read. Conditional expressions, `min`/`max`/`sum`, `in` (literal tuples and
+  lists, list variables, `range(a, b)`, one character against a string literal) and loops over
+  literals convert as well. A statement whose hoisted part would overtake an earlier call is
+  converted again with all its calls in variables, in Python's order.
+* String repetition, `upper`/`lower`/`strip`/`isdigit`/`isalpha`/`isupper`/`islower`/`count` and string
+  slices become small loops (ASCII); helper variables never take the name of one of the function's
+  own variables.
 
 ## Confirmed by verification (33)
 

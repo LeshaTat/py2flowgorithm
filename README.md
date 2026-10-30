@@ -62,18 +62,26 @@ python3 -m unittest discover -s tests -v
 | `while cond:` | `While` |
 | `while True: ... if cond: break` (break last) | `Do` loop with the negated condition |
 | `while True: if cond: break ...` (break first) | `While` with the negated condition |
+| `while True: A; if cond: break; B` (break in the middle) | `A`, then `While not cond: B; A` (a priming read) |
+| `break`, `continue` and `return` anywhere in a loop, `for/while ... else` | a flag in the loop condition (`not done`, `not returned`); what follows a `continue`/`break`/`return` moves into the branches that go on; a `for` with `break` or `return` becomes a `While` over a hidden counter; the code after a loop that may return runs under `If not returned`; `else` runs under `If not done` |
 | `for i in range(a, b, step)` | `For` from `a` to `b - 1` (inclusive end, `dec` for negative literal steps); when the body changes `i`, `i` is read after the loop or `i` is also a float, the `For` counts with a hidden `iCounter` and sets `i = iCounter` at the top of each pass |
 | `for x in xs`, `for ch in s`, `for i, x in enumerate(xs)` | `For` over an index variable plus `x = xs[i]` / `Char(s, i)` |
 | `xs = [0] * n`, `xs: list[str] = [""] * n`, `xs = [3, 4]`, `xs[i]`, `len(xs)` | array `Declare` with a size (in place, since the size is a runtime value), element assignment, `Size(xs)` |
+| `for ch in "abc"`, `for x in [1, 2, 3]` | the literal goes into a variable (`text`, `values`) first |
 | `f(x)` as a statement | `Call` |
 | `# comments`, docstrings | `Comment` shapes (not the shebang, the coding line or tool pragmas such as `# noqa`); the module docstring becomes the program's *about* text and title |
 | module-level `MAX_TRIES = 3` | copied as a declared+assigned local into every function that uses it (Flowgorithm has no globals) |
 | `math.sqrt/sin/cos/tan/asin/acos/atan/log/log10/fabs/floor/pow/exp`, `math.pi` | `Sqrt`, `Sin`, …, `Ln`, `Log10`, `Abs`, `Int`, `^`, `pi` |
 | `random.randint(a, b)`, `random.randrange(n)` | `a + Random(b - a + 1)`, `Random(n)` |
 | `abs`, `round(x, n)`, `str`, `int(s)`, `float(s)`, `ord`, `chr`, `len(s)`, `s[i]` | `Abs`, `ToReal(ToFixed(x, n))`, `ToString`, `ToInteger`, `ToReal`, `ToCode`, `ToChar`, `Len`, `Char(s, i)` |
+| `"*" * n`, `s.upper()`, `s.lower()`, `s.strip()` / `lstrip` / `rstrip`, `s.isdigit()`, `s.isalpha()`, `s.isupper()`, `s.islower()`, `s.count("a")`, `s[a:b]`, `s[::-1]` | a small loop over `Char` / `ToCode` / `ToChar` into a variable before the statement (letters and digits as in ASCII; slice bounds clamped as in Python) |
 | `**`, `//`, `%`, `and/or/not`, comparisons, `a < b < c`, string `+` | `^`, `Int(a / b)`, `%`, `and/or/not`, `==` …, `a < b and b < c`, `&` (`//` and `%` differ from Python for negative operands: Flowgorithm truncates toward zero; the converter warns when an operand may be negative) |
 | `if n:`, `while s:`, `if not xs:` (Python truthiness) | explicit tests: `n != 0`, `s != ""`, `Size(xs) == 0` |
 | `count += x > 0`, `score + (a == b)`, `int(flag)` (a Boolean as 1/0) | `If x > 0: count = count + 1`; otherwise an `If` that sets a variable to 1 or 0 |
+| `a if c else b` | an `If` that assigns the value (directly to the target in `x = a if c else b` and `return a if c else b`) |
+| `min(a, b, c)`, `max(xs)`, `sum(xs)` | comparisons (or a loop over the list) into a variable before the statement |
+| `x in (1, 2, 3)`, `x in xs`, `x in range(a, b)`, `ch in "aeiou"`, `not in` | `x == 1 or x == 2 or x == 3`, a search loop, `x >= a and x < b`, `ch == "a" or ch == "e" ...` (one character against a string literal) |
+| `a and input() == "y"` (something that needs statements on the right of `and`/`or`) | a Boolean `test` filled by nested `If`s, so the right side runs only when Python runs it |
 | `lo <= f() <= hi`, `random.randint(low(), 10)`, `tally[random.randint(1, 6)] += 1`, `[f()] * n` | the call runs once, into a variable before the statement, as in Python |
 | float literals Python writes with an exponent: `1e-05`, `1.602176634e-19`, `6.02e23` | `0.00001`, `1.602176634 * 10 ^ -19`, `6.02 * 10.0 ^ 23` (Flowgorithm has no exponent notation) |
 | `snake_case`, names that clash with Flowgorithm keywords (`len`, `string`, …), names differing only in case, non-ASCII names | renamed (`snakeCase`, `lenVal`, `n2`, `größe` → `grosse`, `счёт` → `schet`): Flowgorithm identifiers are ASCII, allow no underscore and are case-insensitive |
@@ -110,21 +118,24 @@ Everything else is a comment directive:
 
 ### What is not supported (reported as an error with file and line)
 
-Flowgorithm has no exceptions, classes, dictionaries, tuples, string methods, slices,
-nested lists, `break`/`continue` outside the two `while True` patterns above, `return`
-inside loops, `for ... else`, conditional expressions, `in`, `min`/`max`, generators,
-lambdas, global variables, and no string escape sequences (quotes and tabs inside strings
-are emitted through `ToChar(n)`). Keep the interactive program inside that subset and put
+Flowgorithm has no exceptions, classes, dictionaries, tuples, list slices, substring search
+(`in` on strings beyond one character, `find`, `replace`, `split`, `join`, `startswith`), nested
+lists, generators, lambdas, global variables, and no string escape sequences (quotes and tabs inside
+strings are emitted through `ToChar(n)`). String methods other than the ones in the table above are
+reported as errors. Keep the interactive program inside that subset and put
 everything else in `# fg: ignore` functions or in the tests.
 
 ### Where Python and Flowgorithm differ anyway
 
 * Output: Flowgorithm prints a whole-number Real without the `.0` (`2`, where Python prints `2.0`)
   and Booleans as `true`/`false`.
+* `input().strip()` is read with a plain `Input` (the usual defensive `.strip()` would otherwise
+  turn every prompt into a loop); Flowgorithm keeps spaces the user types around the answer.
 * `//` and `%` truncate toward zero in Flowgorithm (Python rounds down); the converter warns.
 * A literal written as `mantissa * 10 ^ exponent` may differ from Python's value in the last digit.
-* Moving a call before its statement must not change the order of side effects, so `input()` on the
-  right of `and`/`or`, or after another call in the same expression, is reported as an error.
+* When part of a statement has to run before it (an `input()` inside an expression, say), the calls
+  that Python makes earlier in that statement go into variables as well, so the flowchart keeps
+  Python's order of input, output and random numbers.
 
 ## Validating the output without Flowgorithm
 

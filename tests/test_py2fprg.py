@@ -296,9 +296,11 @@ class ControlFlowTest(unittest.TestCase):
         ''')
         self.assertIn('<while expression="not (n &gt; 5 or n == 3)">', body)
 
-    def test_break_elsewhere_is_error(self):
-        with self.assertRaises(ConvertError):
-            conv("def main():\n    n = 0\n    while n < 5:\n        n += 1\n        if n == 3:\n            break\n")
+    def test_break_anywhere_stops_the_loop_with_a_flag(self):
+        body = body_xml("def main():\n    n = 0\n    while n < 5:\n        n += 1\n        if n == 3:\n"
+                        "            break\n    print(n)\n")
+        self.assertIn('<assign variable="done" expression="false"/>\n<while expression="not done and n &lt; 5">', body)
+        self.assertIn('<assign variable="done" expression="true"/>', body)
 
     def test_for_range_variants(self):
         body = body_xml('''
@@ -429,7 +431,7 @@ class ExpressionTest(unittest.TestCase):
         self.assertIn('expression="Sqrt(pi)"', xml)
 
     def test_unsupported(self):
-        for src in ("a if b else c", "a in xs", "[x for x in xs]", "a & b", "s * 2", "min(a, b)"):
+        for src in ("[x for x in xs]", "a & b", "s.split()", "s.replace(s, s)", "s in s", "a in a", "s[::2]"):
             with self.assertRaises(ConvertError, msg=src):
                 self.expr(src)
 
@@ -522,20 +524,20 @@ class FunctionTest(unittest.TestCase):
         ''')
         self.assertIn('expression="n * fact(n - 1)"', xml)
 
-    def test_return_in_loop_is_error(self):
-        with self.assertRaises(ConvertError) as cm:
-            conv('''
-                def find(xs: list[int], v: int) -> int:
-                    for i in range(len(xs)):
-                        if xs[i] == v:
-                            return i
-                    return -1
+    def test_return_in_loop_sets_the_result_and_leaves(self):
+        xml = same_as_python(self, '''
+            def find(xs: list[int], v: int) -> int:
+                for i in range(len(xs)):
+                    if xs[i] == v:
+                        return i
+                return -1
 
-                def main():
-                    xs = [0] * 2
-                    print(find(xs, 1))
-            ''')
-        self.assertIn("loop", str(cm.exception))
+            def main():
+                xs = [3, 1, 4]
+                print(find(xs, 1), find(xs, 5))
+        ''')
+        self.assertIn('<while expression="not returned and iCounter &lt;= Size(xs) - 1">', xml)
+        self.assertIn('<if expression="not returned">', xml)
 
     def test_tuple_swap_uses_temps(self):
         body = body_xml('''
@@ -1010,7 +1012,7 @@ class BugHuntRegressionTest(unittest.TestCase):
                 r = random.randint(low(), 10)
                 print(r)
         ''', randoms=[5])
-        self.assertIn('<assign variable="r" expression="low + Random(10 - low + 1)"/>', xml)
+        self.assertIn('<assign variable="r" expression="low2 + Random(10 - low2 + 1)"/>', xml)  # low() is taken
 
     def test_boolean_used_as_a_number(self):  # C5, C9
         xml = same_as_python(self, '''
@@ -1077,17 +1079,39 @@ class BugHuntRegressionTest(unittest.TestCase):
         self.assertEqual(body.count('<output expression="&quot;More? &quot;"'), 2)  # before + end of body
         self.assertEqual(body.count('<output expression="&quot;Again? &quot;"'), 1)  # end of the Do body
 
-    def test_hoisting_that_would_change_python_semantics_is_an_error(self):
-        self.assertIn("on the right of `and` / `or`", error_of(
-            'def main():\n    x = 1\n    if x > 0 and input("sure? ") == "y":\n        print("ok")\n'))
-        self.assertIn("before a call that Python makes first", error_of('''
+    def test_input_on_the_right_of_and_or_runs_only_when_python_runs_it(self):
+        code = '''
+            def main():
+                x = int(input("x? "))
+                if x > 0 and input("sure? ") == "y":
+                    print("ok")
+                if x < 0 or input("again? ") == "y":
+                    print("again")
+                n = 0
+                while n < 3 and input("go? ") == "y":
+                    n += 1
+                print(n)
+        '''
+        same_as_python(self, code, ["1", "y", "n", "y", "y", "n"])
+        xml = same_as_python(self, code, ["-1", "y", "n"])
+        self.assertIn('<assign variable="test" expression="x &gt; 0"/>', xml)
+
+    def test_calls_keep_pythons_order_of_evaluation(self):
+        xml = same_as_python(self, '''
+            import random
+
             def f() -> int:
                 print("f")
                 return 1
 
             def main():
-                print(f() + int(input("n? ")))
-        '''))
+                x = f() + int(input("n? "))
+                if random.randint(1, 6) == int(input("Guess: ")):
+                    print("right")
+                print(x)
+        ''', ["2", "4"], [3])
+        self.assertIn('<assign variable="fResult" expression="f()"/>', xml)
+        self.assertIn('<assign variable="draw" expression="1 + Random(6)"/>', xml)
 
     def test_values_python_evaluates_once(self):  # augmented element with a call in the index, list fill
         xml = same_as_python(self, '''
@@ -1102,6 +1126,143 @@ class BugHuntRegressionTest(unittest.TestCase):
         ''', randoms=[0, 1, 1, 2, 4])
         self.assertIn('<assign variable="tally[pos]" expression="tally[pos] + 1"/>', xml)
         self.assertIn('<assign variable="xs[idx]" expression="fill"/>', xml)
+
+    def test_break_continue_and_return_inside_loops(self):
+        same_as_python(self, '''
+            def find(xs: list[int], target: int) -> int:
+                for i in range(len(xs)):
+                    if xs[i] == target:
+                        return i
+                return -1
+
+            def has_pair(xs: list[int], target: int) -> bool:
+                for i in range(len(xs)):
+                    for j in range(i + 1, len(xs)):
+                        if xs[i] + xs[j] == target:
+                            return True
+                    print("checked", i)
+                return False
+
+            def countdown(n: int):
+                while n > 0:
+                    if n == 2:
+                        print("stop")
+                        return
+                    print(n)
+                    n -= 1
+                print("liftoff")
+
+            def main():
+                xs = [4, 8, 15, 16]
+                print(find(xs, 15), find(xs, 3), "yes" if has_pair(xs, 12) else "no",
+                      "yes" if has_pair(xs, 99) else "no")
+                countdown(4)
+                countdown(1)
+                total = 0
+                for x in xs:
+                    if x > 10:
+                        print("big", x)
+                        break
+                    total += x
+                else:
+                    print("no big one")
+                for i in range(10):
+                    if i % 2 == 0:
+                        continue
+                    total += i
+                for i in range(len(xs)):
+                    if xs[i] % 2 == 1:
+                        break
+                print(total, "stopped at", i)
+                n = 10
+                for k in range(n, 0, -2):
+                    n = 0
+                    if k < 5:
+                        break
+                    print(k)
+        ''')
+
+    def test_loop_and_a_half_becomes_a_priming_read(self):
+        xml = same_as_python(self, '''
+            def main():
+                count = 0
+                while True:
+                    cmd = input("> ")
+                    if cmd == "quit":
+                        break
+                    count += 1
+                for attempt in range(3):
+                    guess = int(input("guess? "))
+                    if guess == 7:
+                        print("right after", attempt + 1)
+                        break
+                    print("wrong")
+                else:
+                    print("out of tries")
+                print(count)
+        ''', ["a", "b", "quit", "1", "2", "3"])
+        body = re.search(r'<function name="Main".*?<body>(.*?)</body>', xml, re.S).group(1)
+        self.assertEqual(body.count('<input variable="cmd"/>'), 2)  # before the loop and at its end
+        self.assertIn('<while expression="cmd != &quot;quit&quot;">', body)
+        self.assertIn('<if expression="not done">', body)  # the for loop's else
+
+    def test_conditional_expressions_min_max_sum_and_in(self):
+        same_as_python(self, '''
+            def sign(n: int) -> str:
+                return "neg" if n < 0 else "pos"
+
+            def main():
+                x = int(input("x? "))
+                label = "big" if x > 10 else "small"
+                print(label, sign(x), "even" if x % 2 == 0 else "odd")
+                y = int(input("y? ")) if x > 0 else 0
+                xs = [4, 8, 1, 6]
+                print(min(x, y), max(x, y, 3), min(xs), max(xs), sum(xs), sum(xs, 10))
+                vowels = 0
+                for ch in "programming":
+                    if ch in "aeiou":
+                        vowels += 1
+                print(vowels, int(x in (1, 12, 13)), int(y in xs), int(x in range(1, 11)), int(y not in range(5)))
+        ''', ["12", "6"])
+        body = body_xml("def main():\n    x = 3\n    y = 1 if x > 2 else 2\n    print(y)\n")
+        self.assertIn('<if expression="x &gt; 2">\n<then>\n<assign variable="y" expression="1"/>', body)
+        self.assertIn("one character", error_of('def main():\n    s = input()\n    print(s in "hello")\n'))
+
+    def test_string_methods_slices_and_repetition(self):
+        same_as_python(self, '''
+            def is_palindrome(word: str) -> bool:
+                w = word.lower()
+                return w == w[::-1]
+
+            def main():
+                n = int(input("rows? "))
+                for i in range(1, n + 1):
+                    print(" " * (n - i) + "*" * (2 * i - 1))
+                if input("Again? ").lower() == "y":
+                    print("yes")
+                name = input("Name? ")
+                print(name.upper(), "[" + name.strip() + "]", "[" + name.lstrip() + "]", "[" + name.rstrip() + "]")
+                for w in ["123", "12a", "", "abc", "ABC", "aBc"]:
+                    print(int(w.isdigit()), int(w.isalpha()), int(w.isupper()), int(w.islower()), w.count("a"))
+                s = "flowchart"
+                k = int(input("k? "))
+                print(s[1:], s[:4], s[2:5], s[-3:], s[:-2], s[5:100], "[" + s[3:1] + "]", s[k:], s[-k:])
+                for w in ["Level", "Python"]:
+                    print(w, "yes" if is_palindrome(w) else "no")
+        ''', ["3", "Y", "  Ada  ", "-2"])
+        msgs = warnings_of("def main():\n    k = 2\n    s = 'ab'\n    print(s[1:], k)\n")
+        self.assertFalse(any("renamed" in m for m in msgs), msgs)  # helper variables keep out of the way
+
+    def test_loops_over_literals(self):
+        same_as_python(self, '''
+            def main():
+                for ch in "hey":
+                    print(ch)
+                for x in [3, 1, 2]:
+                    print(x * 2)
+                for i, w in enumerate(("a", "b")):
+                    print(i, w)
+        ''')
 
     def test_fstring_repr_of_numbers(self):  # L4, L22
         same_as_python(self, 'def main():\n    n = 3\n    x = 2.5\n    print(f"{n=} {x!r}")\n')

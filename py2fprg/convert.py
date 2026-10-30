@@ -7,7 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-from .layout import find_else_line, header_end, indent_of, parse_directive, trailing_end  # noqa: F401
+from .layout import (body_end, find_else_line, header_end, indent_of, parse_directive,  # noqa: F401
+                     trailing_end)
 from .model import (ArrayT, Assign, BOOLEAN, Breakpoint, Call, Comment, ConvertError, Declare, Do,
                     FgType, For, Function, INTEGER, If, Input, Namespace, Output, P_ADD, P_AND, P_ATOM,
                     P_CAT, P_MUL, P_OR, P_POW, P_REL, P_UNARY, Param, REAL, STRING, VOID, Warning_, While,
@@ -27,6 +28,10 @@ MATH_FUNCS = {
     "fabs": ("Abs({0})", REAL), "trunc": ("Int({0})", INTEGER), "floor": ("Int({0})", INTEGER),
 }
 DEFAULT_VALUES = {INTEGER: {0}, REAL: {0, 0.0}, STRING: {""}, BOOLEAN: {False}}
+# string methods that convert (as small loops, ASCII letters and digits) and their result types
+STRING_METHODS = {"upper": STRING, "lower": STRING, "strip": STRING, "lstrip": STRING, "rstrip": STRING,
+                  "isdigit": BOOLEAN, "isalpha": BOOLEAN, "isupper": BOOLEAN, "islower": BOOLEAN,
+                  "count": INTEGER}
 
 
 def float_literal(v: float) -> tuple[str, int]:
@@ -103,6 +108,7 @@ class VarInfo:
     order: int = 0
     declared: FgType = None  # the annotated type; None when the type is inferred (and may widen)
     node: Optional[ast.AST] = None  # first assignment, for error locations
+    char_only: Optional[bool] = None  # every value assigned so far is one character (s[i])
 
 
 def assignable(target: FgType, value: FgType) -> bool:
@@ -143,24 +149,44 @@ def contains_return(stmts: list) -> bool:
     return False
 
 
-def ends_with_return(stmts: list) -> bool:
+def has_jump(stmts: list, kinds: tuple) -> bool:
+    """Is there a statement of these kinds (Break / Continue) that acts on the enclosing loop? Nested
+    loops own their own break and continue."""
+    for s in ast_only(stmts):
+        if isinstance(s, kinds):
+            return True
+        if isinstance(s, ast.If) and (has_jump(s.body, kinds) or has_jump(s.orelse, kinds)):
+            return True
+    return False
+
+
+def is_jump(s: ast.stmt, in_loop: bool) -> bool:
+    return isinstance(s, ast.Return) or in_loop and isinstance(s, (ast.Break, ast.Continue))
+
+
+def ends_with_jump(stmts: list, in_loop: bool = False) -> bool:
+    """Does every path through these statements end with a return (in a loop body: or a break or
+    continue)?"""
     stmts = ast_only(stmts)
     if not stmts:
         return False
     last = stmts[-1]
-    if isinstance(last, ast.Return):
+    if is_jump(last, in_loop):
         return True
     if isinstance(last, ast.If):
-        return ends_with_return(last.body) and ends_with_return(last.orelse)
+        return ends_with_jump(last.body, in_loop) and ends_with_jump(last.orelse, in_loop)
     return False
 
 
-def may_return(stmts: list) -> bool:
-    """True if some path through these statements (if-chains only) returns."""
+def may_jump(stmts: list, in_loop: bool = False) -> bool:
+    """Does some path through these statements skip what follows them: a return (also one inside a
+    loop), and in a loop body a break or continue?"""
     for s in ast_only(stmts):
-        if isinstance(s, ast.Return):
+        if is_jump(s, in_loop):
             return True
-        if isinstance(s, ast.If) and (may_return(s.body) or may_return(s.orelse)):
+        if isinstance(s, ast.If) and (may_jump(s.body, in_loop) or may_jump(s.orelse, in_loop)):
+            return True
+        if isinstance(s, (ast.For, ast.While)) and contains_return(s.body + s.orelse):
             return True
     return False
 
@@ -238,7 +264,8 @@ class FunctionConverter:
     """
 
     def __init__(self, builder: "ProgramBuilder", module: "ModuleInfo", func: "FuncInfo",
-                 hints: Optional[dict[str, FgType]] = None, hidden_loops: frozenset = frozenset()):
+                 hints: Optional[dict[str, FgType]] = None, hidden_loops: frozenset = frozenset(),
+                 linear: frozenset = frozenset()):
         self.b = builder
         self.m = module
         self.f = func
@@ -261,9 +288,15 @@ class FunctionConverter:
         # Statements an expression needs before its own statement (`x = 1 + int(input())`).
         self.pre: list = []
         self.effects = 0  # calls with side effects already emitted in place in this statement
-        self.conditional = 0  # inside the right operand of and/or (evaluated only sometimes)
+        self.stmt_now: Optional[ast.stmt] = None  # the statement being converted
+        self.linear = linear  # statements (ids) whose calls all go into variables, in Python's order
+        self.need_linear: set[int] = set()  # found in this pass
         self.locals: Optional[set[str]] = None
         self.reads: Optional[set[str]] = None
+        self.own_names: Optional[frozenset] = None
+        self.break_flags: list[Optional[VarInfo]] = []  # per enclosing loop: the flag a break sets
+        self.char_assumed: dict[str, ast.AST] = {}  # names `in` treated as one character
+        self.returned: Optional[VarInfo] = None  # set by a return inside a loop
         self.intdiv_warned = False
         self.widened = False
         self.warnings: list[Warning_] = []
@@ -319,6 +352,10 @@ class FunctionConverter:
         for var, _ in self.loop_counters:
             if var.type != INTEGER:  # used as a Real elsewhere: the next pass counts with a copy
                 self.widened = True
+        for name, node in self.char_assumed.items():
+            if not self.vars[name].char_only:
+                raise self.err(f"'{name}' is tested with `in` as one character, but is also assigned longer "
+                               "strings", node, "Flowgorithm has no substring search; compare explicitly")
         for p in f.params:  # callers must see a parameter type that the body widened
             info = self.vars[p.py_name]
             if p.declared is None:
@@ -415,6 +452,8 @@ class FunctionConverter:
         for info in sorted(self.vars.values(), key=lambda v: v.order):
             if info.is_const:
                 out.append(Assign(info.fg, info.const_text))
+        if self.returned is not None:
+            out.append(Assign(self.returned.fg, "false"))
         return out
 
     # --------------------------------------------------------------- comments
@@ -458,33 +497,39 @@ class FunctionConverter:
               moved: frozenset = frozenset()) -> list:
         """Convert a statement list. `indent` is the minimum column of comments that belong to it."""
         items = self.attach_comments(stmts, start_line, end_line, indent, moved)
-        if self.loop_depth > 0 and contains_return(items):
-            for st in ast_only(items):
-                for n in ast.walk(st):
-                    if isinstance(n, ast.Return):
-                        raise self.err("return inside a loop is not supported", n,
-                                       "Flowgorithm has no early return; use a flag variable in the "
-                                       "loop condition and return after the loop")
         items = self.normalize_returns(items)
-        out: list = []
-        saved = self.pre, self.effects, self.conditional
+        saved = self.pre, self.effects, self.stmt_now
         try:
-            for i, item in enumerate(items):
-                if not isinstance(item, ast.AST):  # Comment / Breakpoint shapes
-                    out.append(item)
-                    continue
-                self.pre, self.effects, self.conditional = [], 0, 0
-                if isinstance(item, ast.Return):
-                    later = ast_only(items[i + 1:])
-                    if later:
-                        raise self.err("code after return is unreachable", later[0])
-                    shapes = self.do_return(item)
-                else:
-                    shapes = self.stmt(item)
-                out.extend(self.pre + shapes)  # what the statement's expressions need comes first
+            return self.convert_items(items)
         finally:
-            self.pre, self.effects, self.conditional = saved
+            self.pre, self.effects, self.stmt_now = saved
+
+    def convert_items(self, items: list) -> list:
+        out: list = []
+        for i, item in enumerate(items):
+            if not isinstance(item, ast.AST):  # Comment / Breakpoint shapes
+                out.append(item)
+                continue
+            self.pre, self.effects, self.stmt_now = [], 0, item
+            if is_jump(item, True):
+                later = ast_only(items[i + 1:])
+                if later:
+                    raise self.err(f"code after {type(item).__name__.lower()} is unreachable", later[0])
+            shapes = self.do_return(item) if isinstance(item, ast.Return) else self.stmt(item)
+            out.extend(self.pre + shapes)  # what the statement's expressions need comes first
+            if (isinstance(item, (ast.For, ast.While)) and contains_return(item.body + item.orelse)
+                    and ast_only(items[i + 1:])):
+                # a return inside the loop: what follows runs only when it did not happen
+                rest = self.convert_items(items[i + 1:])
+                out.append(If(f"not {self.returned_flag().fg}", rest, []))
+                break
         return out
+
+    def returned_flag(self) -> VarInfo:
+        """The Boolean that a return inside a loop sets (Flowgorithm has no early return)."""
+        if self.returned is None:
+            self.returned = self.fresh_var("returned", BOOLEAN)
+        return self.returned
 
     def take_pre(self) -> list:
         """The statements hoisted for the current statement, for a statement that places them itself."""
@@ -495,12 +540,13 @@ class FunctionConverter:
         """Run `shapes` just before the current statement: an expression part that Flowgorithm cannot
         evaluate in place (an input(), a value used twice, ...). `mark` counts the side effects that
         were emitted in place before this part: they would now run after it."""
-        if self.conditional:
-            raise self.err(f"{what} on the right of `and` / `or` is not supported", node,
-                           "Python evaluates it only sometimes; use nested if statements")
-        if mark:
-            raise self.err(f"{what} would have to run before a call that Python makes first", node,
-                           "assign the result of that earlier call to a variable first")
+        if mark and self.order_sensitive(node):
+            # a call that Python makes earlier stays in place: convert the statement again with every
+            # such call in a variable of its own, in order
+            if self.stmt_now is None or id(self.stmt_now) in self.linear:  # pragma: no cover
+                raise self.err(f"{what} would have to run before a call that Python makes first", node,
+                               "assign the result of that earlier call to a variable first")
+            self.need_linear.add(id(self.stmt_now))
         self.effects = mark
         self.pre.extend(shapes)
 
@@ -518,6 +564,13 @@ class FunctionConverter:
             elif isinstance(fn, ast.Name) and (self.b.resolve_import(self.m, fn.id) or ("",))[0] == "random":
                 return True
         return False
+
+    def order_sensitive(self, node: ast.AST) -> bool:
+        """Would running `node` earlier than an earlier call be noticeable? Only if it has effects
+        itself, or reads an array (which that call may have changed)."""
+        return self.has_effects(node) or any(
+            isinstance(n, ast.Name) and isinstance(getattr(self.var_info(n.id), "type", None), ArrayT)
+            for n in ast.walk(node))
 
     def bool_as_number(self, node: ast.expr) -> ast.expr:
         """True/False as 1/0 (a Python bool is an int): an If shape before the statement sets a
@@ -587,19 +640,21 @@ class FunctionConverter:
         return self.take_comments(prev_end + 1, last)[0]
 
     def normalize_returns(self, items: list) -> list:
-        """Flowgorithm has no early return: statements that follow an if-chain containing a return
-        are moved into every branch that does not itself return on all paths.
+        """Flowgorithm has no early return, break or continue: statements that follow an if-chain
+        containing one are moved into every branch that does not itself leave on all paths.
 
         Builds new If nodes rather than mutating the AST, so a function can be converted more
         than once (several programs in one directory share modules).
         """
         out: list = []
+        in_loop = self.loop_depth > 0  # break / continue skip the rest of a loop body the same way
         for i, st in enumerate(items):
             rest = items[i + 1:]
-            if isinstance(st, ast.If) and ast_only(rest) and (may_return(st.body) or may_return(st.orelse)):
-                b_all, e_all = ends_with_return(st.body), ends_with_return(st.orelse)
+            if (isinstance(st, ast.If) and ast_only(rest)
+                    and (may_jump(st.body, in_loop) or may_jump(st.orelse, in_loop))):
+                b_all, e_all = ends_with_jump(st.body, in_loop), ends_with_jump(st.orelse, in_loop)
                 if b_all and e_all:
-                    self.warn("unreachable code after if/else that returns in both branches", ast_only(rest)[0])
+                    self.warn("unreachable code after if/else that leaves in both branches", ast_only(rest)[0])
                     out.append(st)
                     return out
                 body = list(st.body) if b_all else list(st.body) + rest
@@ -646,11 +701,13 @@ class FunctionConverter:
     s_Nonlocal = s_Global
 
     def s_Break(self, s: ast.Break) -> list:
-        raise self.err("break is only supported as `while True: ... if cond: break` "
-                       "(first or last statement of the loop)", s)
+        flag = self.break_flags[-1] if self.break_flags else None
+        if flag is None:  # pragma: no cover - a loop with a break always gets a flag
+            raise self.err("break outside a loop", s)
+        return [Assign(flag.fg, "true")]  # the loop condition tests it; the rest of the pass is skipped
 
     def s_Continue(self, s: ast.Continue) -> list:
-        raise self.err("continue is not supported", s, "wrap the rest of the loop body in an if")
+        return []  # normalize_returns() moved the rest of the pass into the other branches
 
     def s_Return(self, s: ast.Return) -> list:  # pragma: no cover - handled in block()
         return self.do_return(s)
@@ -675,8 +732,16 @@ class FunctionConverter:
         raise self.err("del is not supported", s)
 
     def do_return(self, s: ast.Return) -> list:
-        if self.loop_depth > 0:
-            raise self.err("return inside a loop is not supported", s)
+        if self.loop_depth > 0:  # leave the loops through their conditions, skip the rest
+            return self.return_shapes(s) + [Assign(self.returned_flag().fg, "true")]
+        return self.return_shapes(s)
+
+    def return_shapes(self, s: ast.Return) -> list:
+        if isinstance(s.value, ast.IfExp):  # return a if c else b
+            v = s.value
+            cond = self.truthy(v.test)
+            return [If(cond, self.branch(lambda: self.return_shapes(ast.copy_location(ast.Return(value=v.body), s))),
+                       self.branch(lambda: self.return_shapes(ast.copy_location(ast.Return(value=v.orelse), s))))]
         if isinstance(s.value, ast.Constant) and s.value.value is None:
             s = ast.copy_location(ast.Return(value=None), s)
         if s.value is None:
@@ -791,44 +856,91 @@ class FunctionConverter:
         after_then, self.stale = self.stale, before
         else_ = self.block(s.orelse, else_start, orig_end, s.col_offset + 1, moved) if s.orelse else []
         self.stale_merge(after_then)
+        if not then and else_ and not has_call(s.test):  # `if c: continue` leaves only an else
+            return [If(self.negate(s.test), else_, [])]
         return [If(cond, then, else_)]
 
     def s_While(self, s: ast.While) -> list:
-        if s.orelse:
-            raise self.err("while ... else is not supported", s)
         body = ast_only(s.body)  # statements marked `# fg: ignore` are already gone
         head = header_end(self.m, s)
-        if is_true_literal(s.test):
-            if body and is_break_if(body[-1]) and not has_break_or_continue(body[:-1]):
-                # Do loop: convert the body first so variables it defines are known to the condition
-                brk = body[-1]
-                inner = self.loop_body(s, body[:-1], head + 1, brk.lineno - 1, s.col_offset + 1)
-                tail, _ = self.take_comments(brk.lineno, trailing_end(self.m, s))
-                self.check_compare_types(brk.test)
-                cond = self.negate(brk.test)
-                return [Do(cond, inner + tail + self.take_pre())]  # the condition is tested last
-            if body and is_break_if(body[0]) and not has_break_or_continue(body[1:]):
-                brk = body[0]
-                self.check_compare_types(brk.test)
-                cond = self.negate(brk.test)
-                pre = self.take_pre()
-                brk_end = trailing_end(self.m, brk)
-                lead, _ = self.take_comments(head + 1, brk_end)
-                before = self.stale_copy()
-                inner = self.loop_body(s, body[1:], brk_end + 1, s.end_lineno, s.col_offset + 1)
-                self.stale_merge(before)
-                return pre + [While(cond, lead + inner + copy.deepcopy(pre))]
-            raise self.err("`while True` needs a single `if cond: break` as the first statement "
-                           "(-> While loop) or the last statement (-> Do loop) of its body", s)
-        if has_break_or_continue(body):
-            raise self.err("break/continue inside a while loop is not supported", s,
-                           "fold the exit condition into the loop condition")
-        cond = self.truthy(s.test)
+        breaks = has_jump(body, (ast.Break,))
+        simple = not s.orelse and not contains_return(body)
+        if is_true_literal(s.test) and simple:
+            k = next((i for i, st in enumerate(body) if is_break_if(st)), None)
+            if k is not None and not has_jump(body[:k] + body[k + 1:], (ast.Break, ast.Continue)):
+                return self.while_true_break(s, body, k, head)
+        cond = None if is_true_literal(s.test) else self.truthy(s.test)
         pre = self.take_pre()  # what the condition needs runs before the loop and after each pass
+        flag = self.fresh_var("done", BOOLEAN) if breaks else None
+        out: list = [Assign(flag.fg, "false")] if flag else []
+        conds = self.exit_conditions(s, flag) + ([cond] if cond else [])
         before = self.stale_copy()
-        inner = self.loop_body(s, s.body, head + 1, s.end_lineno, s.col_offset + 1)
+        body_end = self.loop_else_line(s) - 1 if s.orelse else s.end_lineno
+        self.break_flags.append(flag)
+        try:
+            inner = self.loop_body(s, s.body, head + 1, body_end, s.col_offset + 1)
+        finally:
+            self.break_flags.pop()
         self.stale_merge(before)
-        return pre + [While(cond, inner + copy.deepcopy(pre))]
+        if pre:  # the condition is tested again only when the loop goes on
+            again = copy.deepcopy(pre)
+            stay = self.exit_conditions(s, flag)
+            inner += [If(" and ".join(stay), again, [])] if stay else again
+        test = " and ".join(f"({c})" if len(conds) > 1 and self.loose(c) else c for c in conds) or "true"
+        return pre + out + [While(test, inner)] + self.loop_else(s, flag)
+
+    def while_true_break(self, s: ast.While, body: list, k: int, head: int) -> list:
+        """`while True:` whose only exit is one top-level `if cond: break`: as the last statement a Do
+        loop, as the first a While, in between the loop is rotated so that the statements before
+        the test run once before the loop and again at the end of each pass (a priming read)."""
+        brk = body[k]
+        col = s.col_offset + 1
+        before_part = self.loop_body(s, body[:k], head + 1, brk.lineno - 1, col) if k else []
+        self.check_compare_types(brk.test)
+        cond = self.negate(brk.test)
+        pre = self.take_pre()
+        if k == len(body) - 1:  # Do loop: the body comes first, the condition is tested last
+            tail, _ = self.take_comments(brk.lineno, trailing_end(self.m, s))
+            return [Do(cond, before_part + tail + pre)]
+        brk_end = trailing_end(self.m, brk)
+        lead, _ = self.take_comments(brk.lineno if k else head + 1, brk_end)
+        before = self.stale_copy()
+        after_part = self.loop_body(s, body[k + 1:], brk_end + 1, s.end_lineno, col)
+        self.stale_merge(before)
+        first = before_part + pre
+        return first + [While(cond, lead + after_part + copy.deepcopy(first))]
+
+    def exit_conditions(self, s: ast.stmt, flag: Optional[VarInfo]) -> list[str]:
+        """What keeps a loop with a return or break inside going: `not returned`, `not done`."""
+        conds = []
+        if contains_return(s.body):
+            conds.append(f"not {self.returned_flag().fg}")
+        if flag is not None:
+            conds.append(f"not {flag.fg}")
+        return conds
+
+    @staticmethod
+    def loose(text: str) -> bool:
+        """Does a condition need parentheses when it is joined with `and`?"""
+        depth = 0
+        for i, ch in enumerate(text):
+            depth += ch == "("
+            depth -= ch == ")"
+            if depth == 0 and text.startswith(" or ", i):
+                return True
+        return False
+
+    def loop_else_line(self, s: ast.stmt) -> int:
+        return find_else_line(self.m, s.col_offset, body_end(self.m, s) + 1, s.orelse[0].lineno) or s.orelse[0].lineno
+
+    def loop_else(self, s: ast.stmt, flag: Optional[VarInfo]) -> list:
+        """`for/while ... else:` runs the else block when the loop ended without a break."""
+        if not s.orelse:
+            return []
+        line = self.loop_else_line(s)
+        shapes = self.block(s.orelse, line, s.end_lineno, s.col_offset + 1)
+        conds = self.exit_conditions(s, flag)
+        return [If(" and ".join(conds), shapes, [])] if conds else shapes
 
     def check_compare_types(self, test: ast.expr) -> None:
         if isinstance(test, ast.Compare):
@@ -866,6 +978,18 @@ class FunctionConverter:
                         self.reads.add(n.target.id)
         return self.reads
 
+    def literal_sequence(self, seq: ast.expr, s: ast.For) -> ast.expr:
+        """`for ch in "abc"` / `for x in [1, 2, 3]`: the literal goes into a variable before the loop."""
+        if isinstance(seq, ast.Constant) and isinstance(seq.value, str):
+            text = self.fresh_var("text", STRING)
+            self.pre.append(Assign(text.fg, self.text(seq)))
+            return ast.copy_location(ast.Name(id=text.py, ctx=ast.Load()), seq)
+        if isinstance(seq, (ast.List, ast.Tuple)):
+            key = f"<values{self.next_order()}>"
+            self.pre.extend(self.declare_array(key, ("literal", seq.elts, None, True), s, None, base="values"))
+            return ast.copy_location(ast.Name(id=key, ctx=ast.Load()), seq)
+        raise self.err("cannot iterate over this value", s)
+
     def counter_is_direct(self, name: str, s: ast.For) -> bool:
         """Can the For shape count with the Python loop variable itself? Flowgorithm's For uses its
         variable as the counter, so not when the body assigns it (that would change the iteration,
@@ -880,11 +1004,6 @@ class FunctionConverter:
         return not any(reads_name(outer, name, s) for outer in self.loop_stack)
 
     def s_For(self, s: ast.For) -> list:
-        if s.orelse:
-            raise self.err("for ... else is not supported", s)
-        if has_break_or_continue(s.body):
-            raise self.err("break/continue inside a for loop is not supported", s,
-                           "use a while loop with the exit condition in its test")
         it, tgt = s.iter, s.target
         is_range = (isinstance(it, ast.Call) and isinstance(it.func, ast.Name) and it.func.id == "range"
                     and self.b.resolve_callee(self.m, it.func) is None)
@@ -895,7 +1014,7 @@ class FunctionConverter:
             if it.keywords:
                 raise self.err("range() with keyword arguments is not supported", s)
             start, end, direction, step = self.range_bounds(it, s)
-            counter_name, elem_name, seq_info = tgt.id, None, None
+            counter_name, elem_name, seq_info, bound_nodes = tgt.id, None, None, list(it.args)
         else:
             if (isinstance(it, ast.Call) and isinstance(it.func, ast.Name) and it.func.id == "enumerate"
                     and len(it.args) == 1 and isinstance(tgt, ast.Tuple) and len(tgt.elts) == 2
@@ -906,20 +1025,27 @@ class FunctionConverter:
             else:
                 raise self.err("unsupported for loop", s,
                                "supported: for i in range(...), for x in xs, for i, x in enumerate(xs)")
+            if isinstance(seq, (ast.Constant, ast.List, ast.Tuple)) and not self.has_effects(seq):
+                seq = self.literal_sequence(seq, s)
             if not isinstance(seq, ast.Name):
-                raise self.err("for loops can only iterate over range(), a list variable or a string variable", s)
+                raise self.err("for loops can only iterate over range(), a list or string (variable or "
+                               "literal), or enumerate() of one", s)
             seq_info = self.lookup(seq)
             if not (isinstance(seq_info.type, ArrayT) or seq_info.type == STRING):
                 raise self.err(f"cannot iterate over '{seq.id}' of type {type_name(seq_info.type)}", s)
             start, direction, step = "0", "inc", "1"
             end = f"{'Size' if isinstance(seq_info.type, ArrayT) else 'Len'}({seq_info.fg}) - 1"
+            bound_nodes = [seq]
+        # a break or a return inside: Flowgorithm's For cannot stop early, so count in a While
+        early = has_jump(s.body, (ast.Break,)) or contains_return(s.body)
 
         before = self.stale_copy()
+        out: list = []
         prologue: list = []
         direct = False
         if counter_name is None:  # for x in xs: count with an index of its own
             counter = self.fresh_var(legalize(elem_name) + "Index", INTEGER)
-        elif self.counter_is_direct(counter_name, s):
+        elif not early and self.counter_is_direct(counter_name, s):
             counter = self.var_assign(counter_name, INTEGER, s)
             self.loop_counters.append((counter, s))
             direct = True
@@ -934,12 +1060,41 @@ class FunctionConverter:
                 elem_text, elem_type = f"{seq_info.fg}[{counter.fg}]", seq_info.type.elem
             else:
                 elem_text, elem_type = f"Char({seq_info.fg}, {counter.fg})", STRING
-            prologue.append(Assign(self.var_assign(elem_name, elem_type, s).fg, elem_text))
-        body = prologue + self.loop_body(s, s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
+            prologue.append(Assign(self.var_assign(elem_name, elem_type, s, char=elem_type == STRING).fg,
+                                   elem_text))
+        flag = self.fresh_var("done", BOOLEAN) if has_jump(s.body, (ast.Break,)) else None
+        if early:
+            # Python evaluates the bounds once; a While tests them before every pass
+            changing = assigned_names(s.body)
+            def once(text: str, base: str) -> str:
+                if re.fullmatch(r"-?\d+", text):
+                    return text
+                names = {n.id for b in bound_nodes for n in ast.walk(b) if isinstance(n, ast.Name)}
+                if not (names & changing) and not any(self.has_effects(b) for b in bound_nodes):
+                    return text
+                tmp = self.fresh_var(legalize(counter_name or elem_name) + base, INTEGER)
+                out.append(Assign(tmp.fg, text))
+                return tmp.fg
+            out.append(Assign(counter.fg, start))  # range(start, stop, step): in this order
+            end = once(end, "Last")
+            step = once(step, "Step")
+            if flag is not None:
+                out.append(Assign(flag.fg, "false"))
+        body_end_line = self.loop_else_line(s) - 1 if s.orelse else s.end_lineno
+        self.break_flags.append(flag)
+        try:
+            body = prologue + self.loop_body(s, s.body, header_end(self.m, s) + 1, body_end_line, s.col_offset + 1)
+        finally:
+            self.break_flags.pop()
         self.stale_merge(before)  # the body may not run at all
         if direct:
             self.stale[counter_name] = {id(s)}
-        return [For(counter.fg, start, end, direction, step, body)]
+        if not early:
+            return out + [For(counter.fg, start, end, direction, step, body)] + self.loop_else(s, flag)
+        sign, cmp = ("+", "<=") if direction == "inc" else ("-", ">=")
+        body.append(Assign(counter.fg, f"{counter.fg} {sign} {step if re.fullmatch(r'[A-Za-z0-9]+', step) else f'({step})'}"))
+        conds = self.exit_conditions(s, flag) + [f"{counter.fg} {cmp} {end}"]
+        return out + [While(" and ".join(conds), body)] + self.loop_else(s, flag)
 
     def range_bounds(self, call: ast.Call, s: ast.For) -> tuple[str, str, str, str]:
         args = call.args
@@ -1051,6 +1206,18 @@ class FunctionConverter:
         text, p = self.truthy_expr(test)
         return "not " + (f"({text})" if p < P_UNARY else text), P_UNARY
 
+    def lower_boolop(self, node: ast.BoolOp, word: str, parts: list, first, rest: list, mark: int) -> tuple[str, int]:
+        """`a and input() == "y"`: the right side runs only sometimes, and it needs statements first.
+        A Boolean takes the value of the left side; an If evaluates each further operand only when
+        the result is still open."""
+        test = self.fresh_var("test", BOOLEAN)
+        shapes: list = [Assign(test.fg, f" {word} ".join(parts))]
+        guard = test.fg if word == "and" else f"not {test.fg}"
+        for (t, _), pre in [first] + [self.capture(v, self.truthy_expr) for v in rest]:
+            shapes.append(If(guard, pre + [Assign(test.fg, t)], []))
+        self.hoist(shapes, node, "a test", mark)
+        return test.fg, P_ATOM
+
     def truthy(self, node: ast.expr) -> str:
         """Flowgorithm Boolean text for a Python truth test (`if n:` -> `n != 0`)."""
         return self.truthy_expr(node)[0]
@@ -1058,13 +1225,15 @@ class FunctionConverter:
     def truthy_expr(self, node: ast.expr) -> tuple[str, int]:
         if isinstance(node, ast.BoolOp):
             word, p = ("and", P_AND) if isinstance(node.op, ast.And) else ("or", P_OR)
+            mark = self.effects
             parts = []
             for k, v in enumerate(node.values):
-                self.conditional += k > 0
-                try:
+                if k == 0:
                     t, vp = self.truthy_expr(v)
-                finally:
-                    self.conditional -= k > 0
+                else:  # evaluated only when the operands before it did not decide
+                    (t, vp), pre = self.capture(v, self.truthy_expr)
+                    if pre:
+                        return self.lower_boolop(node, word, parts, ((t, vp), pre), node.values[k + 1:], mark)
                 parts.append(f"({t})" if vp < p else t)
             return f" {word} ".join(parts), p
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
@@ -1094,6 +1263,10 @@ class FunctionConverter:
                 var = self.var_assign(target.id, t, node)
                 out.append(Input(var.fg))
                 return out
+            if isinstance(value, ast.IfExp):
+                cond = self.truthy(value.test)
+                return [If(cond, self.branch(lambda: self.assign_to(target, value.body, node, ann)),
+                           self.branch(lambda: self.assign_to(target, value.orelse, node, ann)))]
             arr = self.match_list_create(value, node)
             if arr is not None:
                 return self.declare_array(target.id, arr, node, ann)
@@ -1106,7 +1279,7 @@ class FunctionConverter:
                     raise self.err(f"'{target.id}' is annotated {py_type(ann)} but assigned {py_type(t)}",
                                    node, self.annotation_hint(ann, t))
                 t = ann
-            var = self.var_assign(target.id, t, node, declared=ann)
+            var = self.var_assign(target.id, t, node, declared=ann, char=self.is_char(value))
             return [Assign(var.fg, text)]
         if isinstance(target, ast.Subscript):
             tgt_text, info = self.index_target(target)
@@ -1219,7 +1392,7 @@ class FunctionConverter:
             raise self.err("list() is not supported; create arrays with `[0] * n`", node)
         return None
 
-    def declare_array(self, py_name: str, spec, node: ast.stmt, ann: FgType) -> list:
+    def declare_array(self, py_name: str, spec, node: ast.stmt, ann: FgType, base: str = "") -> list:
         kind, a, n = spec[:3]
         if py_name in self.vars:
             raise self.err(f"'{py_name}' is already defined; arrays cannot be re-created", node)
@@ -1264,7 +1437,7 @@ class FunctionConverter:
         if self.loop_depth > 0:
             self.warn(f"array '{py_name}' is created inside a loop; Flowgorithm re-declares it on every "
                       f"iteration", node)
-        fg = self.ns.reserve(legalize(py_name))
+        fg = self.ns.reserve(base or legalize(py_name))
         self.vars[py_name] = VarInfo(py_name, fg, ArrayT(elem_type), is_array=True, order=self.next_order(),
                                      declared=ann, node=node)
         out: list = [Declare([fg], elem_type, True, size)]
@@ -1424,7 +1597,7 @@ class FunctionConverter:
             return None
         return self.b.resolve_constant(self.m, node)
 
-    def var_assign(self, py: str, t: FgType, node: ast.AST, declared: FgType = None) -> VarInfo:
+    def var_assign(self, py: str, t: FgType, node: ast.AST, declared: FgType = None, char: bool = False) -> VarInfo:
         info = self.var_info(py)
         if info is None:
             want = legalize(py)
@@ -1446,6 +1619,7 @@ class FunctionConverter:
         if info.is_array:
             raise self.err(f"cannot reassign array '{py}'", node)
         self.stale.pop(py, None)
+        info.char_only = char and info.char_only is not False
         if info.declared is not None:
             if declared is not None and declared != info.declared:
                 raise self.err(f"'{py}' is annotated twice, as {py_type(info.declared)} and {py_type(declared)}", node)
@@ -1471,8 +1645,15 @@ class FunctionConverter:
             self.widened = True  # earlier uses saw the narrower type: the builder converts again
         return info
 
+    def user_names(self) -> frozenset:
+        """Flowgorithm names of the function's own variables: helper variables leave them free."""
+        if self.own_names is None:
+            names = assigned_names(self.f.body) | self.read_names() | {p.py_name for p in self.f.params}
+            self.own_names = frozenset(legalize(n).lower() for n in names)
+        return self.own_names
+
     def fresh_var(self, base: str, t: FgType) -> VarInfo:
-        fg = self.ns.reserve(base)
+        fg = self.ns.reserve(base, self.user_names())
         key = f"<{fg}>"
         info = VarInfo(key, fg, t, order=self.next_order())
         self.vars[key] = info
@@ -1598,7 +1779,7 @@ class FunctionConverter:
             sym, p = "-", P_ADD
         elif op is ast.Mult:
             if lt == STRING or rt == STRING:
-                raise self.err("string repetition is not supported", n)
+                return self.string_repeat(n.left, n.right) if lt == STRING else self.string_repeat(n.right, n.left)
             sym, p = "*", P_MUL
         elif op is ast.Div:
             sym, p = "/", P_MUL
@@ -1632,10 +1813,14 @@ class FunctionConverter:
         return self.truthy_expr(n)
 
     def e_Compare(self, n: ast.Compare) -> tuple[str, int]:
+        if len(n.ops) == 1 and isinstance(n.ops[0], (ast.In, ast.NotIn)):
+            return self.membership(n)
         for op in n.ops:
             if type(op) not in COMPARE_OP:
-                raise self.err(f"comparison '{type(op).__name__}' is not supported", n,
-                               "Flowgorithm has no `in`; compare against each value with == / or")
+                what = "`in` inside a chained comparison" if isinstance(op, (ast.In, ast.NotIn)) else \
+                    f"comparison '{type(op).__name__}'"
+                raise self.err(f"{what} is not supported", n,
+                               "Flowgorithm has no `is`; compare values with == / !=")
         operands = [n.left] + list(n.comparators)
         types = [self.infer(x) for x in operands]
         for (lt, rt) in zip(types, types[1:]):
@@ -1666,6 +1851,11 @@ class FunctionConverter:
                        "Flowgorithm has no objects or methods")
 
     def e_Subscript(self, n: ast.Subscript) -> tuple[str, int]:
+        if isinstance(n.slice, ast.Slice) and self.infer(n.value) == STRING:
+            return self.string_slice(n)
+        if not isinstance(n.value, ast.Name) and self.infer(n.value) == STRING:  # input()[0]
+            n = ast.copy_location(ast.Subscript(value=self.hoist_value(n.value, "text", "the string"),
+                                                slice=n.slice, ctx=ast.Load()), n)
         if not isinstance(n.value, ast.Name):
             raise self.err("only variables can be indexed", n)
         info = self.lookup(n.value)
@@ -1716,7 +1906,71 @@ class FunctionConverter:
         raise self.err(f"format spec '{spec}' is not supported (only .Nf)", fv)
 
     def e_IfExp(self, n: ast.IfExp) -> tuple[str, int]:
-        raise self.err("conditional expressions are not supported", n, "use an if statement")
+        """`a if c else b`: an If shape before the statement picks the value (each branch's own
+        hoisted parts stay inside it, since Python evaluates only one of them)."""
+        mark = self.effects
+        t = self.join_or_err([n.body, n.orelse], n, "the two values of the conditional expression")
+        cond = self.truthy(n.test)
+        (a, _), a_pre = self.capture(n.body)
+        (b, _), b_pre = self.capture(n.orelse)
+        choice = self.fresh_var("choice", t)
+        self.hoist([If(cond, a_pre + [Assign(choice.fg, a)], b_pre + [Assign(choice.fg, b)])], n,
+                   "a conditional expression", mark)
+        return choice.fg, P_ATOM
+
+    def branch(self, convert) -> list:
+        """Shapes for a statement that runs only sometimes: what it hoists stays with it."""
+        saved = self.pre, self.effects
+        self.pre, self.effects = [], 0
+        try:
+            shapes = convert()
+            return self.pre + shapes
+        finally:
+            self.pre, self.effects = saved
+
+    def capture(self, node: ast.expr, convert=None) -> tuple[tuple[str, int], list]:
+        """Convert an expression that runs only sometimes: what it hoists stays with it (the
+        returned list); calls it makes in place count for the statement."""
+        saved = self.pre, self.effects
+        self.pre, self.effects = [], 0
+        try:
+            tp = (convert or self.expr)(node)
+            pre, effects = self.pre, self.effects
+        finally:
+            self.pre, self.effects = saved
+        self.effects += effects
+        return tp, pre
+
+    def effect_value(self, tp: tuple[str, int], t: FgType, node: ast.AST, base: str) -> tuple[str, int]:
+        """A call with side effects inside an expression: in place, or (for a statement that must keep
+        Python's order of evaluation) into a variable before the statement."""
+        cur = self.stmt_now
+        if cur is not None and id(cur) in self.linear and not (isinstance(cur, ast.Expr) and cur.value is node):
+            tmp = self.fresh_var(base, t)
+            self.pre.append(Assign(tmp.fg, tp[0]))
+            return tmp.fg, P_ATOM
+        self.effects += 1
+        return tp
+
+    def join_or_err(self, nodes: list, n: ast.AST, what: str) -> FgType:
+        t: FgType = None
+        for x in nodes:
+            try:
+                t = join_types(t, self.infer(x))
+            except TypeError as e:
+                raise self.err(f"{what} have different types ({e})", n) from None
+        if t is None or isinstance(t, ArrayT):
+            raise self.err(f"cannot infer the type of {what}", n, "assign it to a variable first")
+        return t
+
+    def is_char(self, node: ast.expr) -> bool:
+        """Is this certainly a one-character string (`s[i]`, a for-each variable over a string)?"""
+        if isinstance(node, ast.Subscript) and self.infer(node.value) == STRING:
+            return True
+        if isinstance(node, ast.Name):
+            info = self.var_info(node.id)
+            return info is not None and bool(info.char_only)
+        return False
 
     def e_Call(self, n: ast.Call) -> tuple[str, int]:
         inp = self.match_input(n)
@@ -1740,6 +1994,9 @@ class FunctionConverter:
             if ext is not None:
                 return self.library_call(ext[0], ext[1], args, n)
             return self.builtin_call(fn.id, args, n)
+        if (isinstance(fn, ast.Attribute) and self.infer(fn.value) == STRING
+                and not (isinstance(fn.value, ast.Name) and self.b.module_alias_target(self.m, fn.value.id))):
+            return self.string_method(fn.value, fn.attr, args, n)
         if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
             target = self.b.module_alias_target(self.m, fn.value.id)
             if target in ("math", "random"):
@@ -1786,8 +2043,8 @@ class FunctionConverter:
                 raise self.err(f"parameter '{p.py_name}' of {fi.py_name}() is {py_type(p.type)} but gets "
                                f"{py_type(at)}", a, hint)
             texts.append(self.text(a))
-        self.effects += 1
-        return f"{fi.fg_name}({', '.join(texts)})"
+        text = f"{fi.fg_name}({', '.join(texts)})"
+        return self.effect_value((text, P_ATOM), fi.ret_type, call, legalize(fi.py_name) + "Result")[0]
 
     def library_call(self, module: str, name: str, args: list, n: ast.Call) -> tuple[str, int]:
         if module == "math":
@@ -1802,24 +2059,275 @@ class FunctionConverter:
             if name == "ceil":
                 raise self.err("math.ceil has no Flowgorithm equivalent", n, "use Int(x) + 1 after a check")
             raise self.err(f"math.{name} is not supported", n)
-        if module == "random":
-            self.effects += 1  # Random() draws the next number
-            if name in ("randint", "randrange") and len(args) == 2:
-                a, b = args
-                if self.literal_int(a) == 0:
-                    return f"Random({self.plus_one(b) if name == 'randint' else self.text(b)})", P_ATOM
-                if has_call(a):  # `a + Random(b - a + 1)` uses the lower bound twice
-                    self.effects -= 1
-                    a = self.hoist_value(a, "low", f"the lower bound of {name}()")
-                    self.effects += 1
-                low = self.sub(a, P_ADD)
-                return f"{low} + Random({self.minus_expr(b, a, 1 if name == 'randint' else 0)})", P_ADD
-            if name == "randrange" and len(args) == 1:
-                return f"Random({self.text(args[0])})", P_ATOM
-            if name == "random" and not args:
-                return "Random(1000000) / 1000000.0", P_MUL
-            raise self.err(f"random.{name} is not supported", n, "use random.randint(a, b) or random.randrange(n)")
+        if module == "random":  # Random() draws the next number: a side effect
+            return self.effect_value(self.random_call(name, args, n), REAL if name == "random" else INTEGER,
+                                     n, "draw")
         raise self.err(f"{module}.{name} is not supported", n)
+
+    def aggregate(self, name: str, args: list, n: ast.Call) -> tuple[str, int]:
+        """min/max of values or of a list, sum of a list: one comparison (addition) at a time, before
+        the statement."""
+        mark = self.effects
+        if any(isinstance(a, ast.Starred) for a in args):
+            raise self.err(f"*args in {name}() is not supported", n)
+        if len(args) == 1 or name == "sum":
+            seq = args[0] if args else None
+            t = self.infer(seq) if seq is not None else None
+            if not (isinstance(seq, ast.Name) and isinstance(t, ArrayT)) or len(args) > 2:
+                raise self.err(f"{name}() needs a list variable" + (" or two or more values" if name != "sum" else ""), n)
+            arr = self.lookup(seq)
+            k = self.fresh_var(legalize(seq.id) + "Index", INTEGER)
+            item = f"{arr.fg}[{k.fg}]"
+            if name == "sum":
+                if not is_numeric(t.elem):
+                    raise self.err(f"sum() of a list of {py_type(t.elem)} values", n)
+                start = args[1] if len(args) == 2 else None
+                try:
+                    rt = t.elem if start is None else join_types(t.elem, self.infer(start))
+                except TypeError as e:
+                    raise self.err(f"sum()'s start value has another type ({e})", n) from None
+                result = self.fresh_var("total", rt)
+                shapes = [Assign(result.fg, self.text(start) if start is not None else "0"),
+                          For(k.fg, "0", f"Size({arr.fg}) - 1", "inc", "1",
+                              [Assign(result.fg, f"{result.fg} + {item}")])]
+            else:
+                if t.elem == BOOLEAN:
+                    raise self.err(f"{name}() of Boolean values is not supported", n)
+                op = "<" if name == "min" else ">"
+                result = self.fresh_var("smallest" if name == "min" else "largest", t.elem)
+                shapes = [Assign(result.fg, f"{arr.fg}[0]"),
+                          For(k.fg, "1", f"Size({arr.fg}) - 1", "inc", "1",
+                              [If(f"{item} {op} {result.fg}", [Assign(result.fg, item)], [])])]
+        else:
+            t = self.join_or_err(args, n, f"the arguments of {name}()")
+            if t == BOOLEAN:
+                raise self.err(f"{name}() of Boolean values is not supported", n)
+            values = []
+            for a in args:  # Python evaluates them all first, once each
+                if has_call(a):
+                    a = self.hoist_value(a, "value", f"an argument of {name}()")
+                values.append(self.expr(a))
+            op = "<" if name == "min" else ">"
+            result = self.fresh_var("smallest" if name == "min" else "largest", t)
+            shapes = [Assign(result.fg, values[0][0])] + [
+                If(f"{paren(v, P_REL)} {op} {result.fg}", [Assign(result.fg, v[0])], []) for v in values[1:]]
+        self.hoist(shapes, n, f"{name}()", mark)
+        return result.fg, P_ATOM
+
+    def simple_text(self, node: ast.expr, base: str) -> str:
+        """The text of a value that is used several times: a variable as it is, anything else in a
+        fresh variable first."""
+        text = self.text(node)
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", text):
+            return text
+        tmp = self.fresh_var(base, self.infer(node))
+        self.pre.append(Assign(tmp.fg, text))
+        return tmp.fg
+
+    def string_method(self, recv: ast.expr, name: str, args: list, n: ast.Call) -> tuple[str, int]:
+        """Flowgorithm has no string functions beyond Len/Char/ToCode/ToChar: the common methods
+        become a loop before the statement (letters and digits as in ASCII)."""
+        if name not in STRING_METHODS:
+            raise self.err(f"string method '.{name}()' is not supported", n,
+                           "supported: upper, lower, strip, lstrip, rstrip, isdigit, isalpha, isupper, "
+                           "islower, count of one character")
+        if args and not (name == "count" and len(args) == 1 and isinstance(args[0], ast.Constant)
+                         and isinstance(args[0].value, str) and len(args[0].value) == 1):
+            raise self.err(f"'.{name}()' is supported " + ("for one character given as a literal" if name == "count"
+                                                            else "without arguments"), n)
+        if name == "count" and not args:
+            raise self.err("'.count()' needs the character to count", n)
+        mark = self.effects
+        s = self.simple_text(recv, "text")
+        k = self.fresh_var("k", INTEGER)
+        ch = f"Char({s}, {k.fg})"
+        loop = lambda body, first="0": For(k.fg, first, f"Len({s}) - 1", "inc", "1", body)  # noqa: E731
+        lower, upper = f'{ch} >= "a" and {ch} <= "z"', f'{ch} >= "A" and {ch} <= "Z"'
+        if name in ("upper", "lower"):
+            result = self.fresh_var(name + "Text", STRING)
+            c = self.fresh_var("c", STRING)
+            lo, hi, sign = ('"a"', '"z"', "-") if name == "upper" else ('"A"', '"Z"', "+")
+            shapes = [Assign(result.fg, '""'), loop([
+                Assign(c.fg, ch),
+                If(f"{c.fg} >= {lo} and {c.fg} <= {hi}", [Assign(c.fg, f"ToChar(ToCode({c.fg}) {sign} 32)")], []),
+                Assign(result.fg, f"{result.fg} & {c.fg}")])]
+        elif name in ("isdigit", "isalpha", "isupper", "islower"):
+            result = self.fresh_var({"isdigit": "allDigits", "isalpha": "allLetters", "isupper": "upperOnly",
+                                     "islower": "lowerOnly"}[name], BOOLEAN)
+            test = {"isdigit": f'{ch} >= "0" and {ch} <= "9"', "isalpha": f"{lower} or {upper}",
+                    "isupper": upper, "islower": lower}[name]
+            if name in ("isdigit", "isalpha"):
+                shapes = [Assign(result.fg, f"Len({s}) > 0"), loop([If(f"not ({test})", [Assign(result.fg, "false")], [])])]
+            else:  # at least one cased letter, and none of the other case
+                cased = self.fresh_var("cased", BOOLEAN)
+                other = lower if name == "isupper" else upper
+                shapes = [Assign(result.fg, "true"), Assign(cased.fg, "false"), loop([
+                    If(test, [Assign(cased.fg, "true")], []),
+                    If(other, [Assign(result.fg, "false")], [])]),
+                    If(f"not {cased.fg}", [Assign(result.fg, "false")], [])]
+        elif name == "count":
+            result = self.fresh_var("count", INTEGER)
+            shapes = [Assign(result.fg, "0"),
+                      loop([If(f"{ch} == {string_literal(args[0].value)[0]}", [Assign(result.fg, f"{result.fg} + 1")], [])])]
+        else:  # strip / lstrip / rstrip (spaces and tabs)
+            result = self.fresh_var("stripped", STRING)
+            first, last = self.fresh_var("first", INTEGER), self.fresh_var("last", INTEGER)
+            going = self.fresh_var("going", BOOLEAN)
+            def blank(i: str) -> str:
+                return f'Char({s}, {i}) == " " or Char({s}, {i}) == ToChar(9)'
+            shapes = [Assign(first.fg, "0"), Assign(last.fg, f"Len({s}) - 1")]
+            if name in ("strip", "lstrip"):  # no short-circuit needed: the bound is tested first
+                shapes += [Assign(going.fg, "true"), While(going.fg, [If(f"{first.fg} <= {last.fg}", [
+                    If(blank(first.fg), [Assign(first.fg, f"{first.fg} + 1")], [Assign(going.fg, "false")])],
+                    [Assign(going.fg, "false")])])]
+            if name in ("strip", "rstrip"):
+                shapes += [Assign(going.fg, "true"), While(going.fg, [If(f"{last.fg} >= {first.fg}", [
+                    If(blank(last.fg), [Assign(last.fg, f"{last.fg} - 1")], [Assign(going.fg, "false")])],
+                    [Assign(going.fg, "false")])])]
+            shapes += [Assign(result.fg, '""'),
+                       For(k.fg, first.fg, last.fg, "inc", "1", [Assign(result.fg, f"{result.fg} & {ch}")])]
+        self.hoist(shapes, n, f"'.{name}()'", mark)
+        return result.fg, P_ATOM
+
+    def string_slice(self, n: ast.Subscript) -> tuple[str, int]:
+        """`s[a:b]`, `s[a:]`, `s[:b]`, `s[::-1]`: the characters copied in a loop. The bounds are
+        clamped like Python's (negative ones count from the end)."""
+        mark = self.effects
+        sl = n.slice
+        step = 1 if sl.step is None else self.literal_int(sl.step)
+        if step not in (1, -1) or step == -1 and (sl.lower is not None or sl.upper is not None):
+            raise self.err("only s[a:b] (and s[::-1]) slices are supported", n)
+        s = self.simple_text(n.value, "text")
+        result = self.fresh_var("part", STRING)
+        k = self.fresh_var("k", INTEGER)
+        shapes: list = [Assign(result.fg, '""')]
+        if step == -1:
+            shapes.append(For(k.fg, f"Len({s}) - 1", "0", "dec", "1", [Assign(result.fg, f"{result.fg} & Char({s}, {k.fg})")]))
+            self.hoist(shapes, n, "a slice", mark)
+            return result.fg, P_ATOM
+
+        def bound(node, base: str, default: str) -> str:
+            if node is None:
+                return default
+            v = self.literal_int(node)
+            if v is not None and v >= 0 and base == "start":
+                return str(v)
+            if self.infer(node) not in (INTEGER, None):
+                raise self.err("slice bounds must be integers", node)
+            var = self.fresh_var(base, INTEGER)
+            shapes.append(Assign(var.fg, self.text(node) if v is None or v >= 0 else f"Len({s}) - {-v}"))
+            if v is None:  # negative at run time: counted from the end
+                shapes.append(If(f"{var.fg} < 0", [Assign(var.fg, f"{var.fg} + Len({s})")], []))
+            shapes.append(If(f"{var.fg} < 0", [Assign(var.fg, "0")], []))
+            shapes.append(If(f"{var.fg} > Len({s})", [Assign(var.fg, f"Len({s})")], []))
+            return var.fg
+
+        start = bound(sl.lower, "start", "0")
+        stop = bound(sl.upper, "stop", f"Len({s})")
+        shapes.append(For(k.fg, start, self.add_text(stop, -1), "inc", "1",
+                          [Assign(result.fg, f"{result.fg} & Char({s}, {k.fg})")]))
+        self.hoist(shapes, n, "a slice", mark)
+        return result.fg, P_ATOM
+
+    @staticmethod
+    def add_text(text: str, k: int) -> str:
+        if re.fullmatch(r"-?\d+", text):
+            return str(int(text) + k)
+        return f"{text} + {k}" if k > 0 else f"{text} - {-k}"
+
+    def string_repeat(self, text_node: ast.expr, count_node: ast.expr) -> tuple[str, int]:
+        """`"*" * n`: the string appended n times (nothing for n <= 0, as in Python)."""
+        mark = self.effects
+        if self.infer(count_node) not in (INTEGER, None):
+            raise self.err("a string can only be repeated an integer number of times", count_node)
+        piece = self.simple_text(text_node, "piece") if has_call(text_node) else self.text(text_node)
+        result = self.fresh_var("repeated", STRING)
+        k = self.fresh_var("k", INTEGER)
+        shapes = [Assign(result.fg, '""'),
+                  For(k.fg, "1", self.text(count_node), "inc", "1", [Assign(result.fg, f"{result.fg} & {piece}")])]
+        self.hoist(shapes, count_node, "string repetition", mark)
+        return result.fg, P_ATOM
+
+    def membership(self, n: ast.Compare) -> tuple[str, int]:
+        """`x in (1, 2, 3)`, `x in xs`, `x in range(a, b)`, `ch in "aeiou"` (and `not in`)."""
+        negate = isinstance(n.ops[0], ast.NotIn)
+        x, box = n.left, n.comparators[0]
+        eq, joiner, prec = ("!=", " and ", P_AND) if negate else ("==", " or ", P_OR)
+        if (isinstance(box, ast.Call) and isinstance(box.func, ast.Name) and box.func.id == "range"
+                and self.b.resolve_callee(self.m, box.func) is None and 1 <= len(box.args) <= 2 and not box.keywords):
+            if self.infer(x) not in (INTEGER, None):
+                raise self.err("only integers can be tested with `in range(...)`", n)
+            lo, hi = (None, box.args[0]) if len(box.args) == 1 else box.args
+            if has_call(x):
+                x = self.hoist_value(x, "value", "the value tested with `in`")
+            xt = self.sub(x, P_REL)
+            low = self.sub(lo, P_REL, "right") if lo is not None else "0"
+            high = self.sub(hi, P_REL, "right")
+            if negate:
+                return f"{xt} < {low} or {xt} >= {high}", P_OR
+            return f"{xt} >= {low} and {xt} < {high}", P_AND
+        if isinstance(box, (ast.Tuple, ast.List, ast.Set)):
+            if any(isinstance(e, ast.Starred) or self.has_effects(e) for e in box.elts):
+                raise self.err("the values of an `in` test must not call functions", n, "assign them to variables first")
+            if not box.elts:
+                return ("true" if negate else "false"), P_ATOM
+            if has_call(x):
+                x = self.hoist_value(x, "value", "the value tested with `in`")
+            xt = paren(self.expr(x), P_REL)
+            parts = []
+            for e in box.elts:
+                lt, rt = self.infer(x), self.infer(e)
+                if lt is not None and rt is not None and not self.compatible(lt, rt):
+                    raise self.err(f"comparing {type_name(lt)} with {type_name(rt)}", e)
+                parts.append(f"{xt} {eq} {self.sub(e, P_REL, 'right')}")
+            return joiner.join(parts), (prec if len(parts) > 1 else P_REL)
+        bt = self.infer(box)
+        if isinstance(bt, ArrayT) and isinstance(box, ast.Name):  # a search loop before the statement
+            mark = self.effects
+            lt = self.infer(x)
+            if lt is not None and not self.compatible(lt, bt.elem):
+                raise self.err(f"comparing {type_name(lt)} with {type_name(bt.elem)}", n)
+            if has_call(x):
+                x = self.hoist_value(x, "value", "the value tested with `in`")
+            arr = self.lookup(box)
+            found = self.fresh_var("found", BOOLEAN)
+            k = self.fresh_var(legalize(box.id) + "Index", INTEGER)
+            shapes = [Assign(found.fg, "false"),
+                      For(k.fg, "0", f"Size({arr.fg}) - 1", "inc", "1",
+                          [If(f"{arr.fg}[{k.fg}] == {self.sub(x, P_REL, 'right')}", [Assign(found.fg, "true")], [])])]
+            self.hoist(shapes, n, "an `in` test", mark)
+            return (f"not {found.fg}", P_UNARY) if negate else (found.fg, P_ATOM)
+        if bt == STRING and isinstance(box, ast.Constant) and self.is_char(x):
+            if isinstance(x, ast.Name):
+                self.char_assumed.setdefault(x.id, x)
+            chars = list(dict.fromkeys(box.value))
+            if not chars:
+                return ("true" if negate else "false"), P_ATOM
+            if has_call(x):
+                x = self.hoist_value(x, "value", "the value tested with `in`")
+            xt = paren(self.expr(x), P_REL)
+            parts = [f"{xt} {eq} {string_literal(c)[0]}" for c in chars]
+            return joiner.join(parts), (prec if len(parts) > 1 else P_REL)
+        if bt == STRING:
+            raise self.err("`in` on strings is only supported for one character (s[i], or the variable of a "
+                           "for loop over a string) against a string literal", n,
+                           "Flowgorithm has no substring search; compare explicitly")
+        raise self.err("`in` needs a tuple or list of values, a list variable, range(a, b) or a string literal", n)
+
+    def random_call(self, name: str, args: list, n: ast.Call) -> tuple[str, int]:
+        if name in ("randint", "randrange") and len(args) == 2:
+            a, b = args
+            if self.literal_int(a) == 0:
+                return f"Random({self.plus_one(b) if name == 'randint' else self.text(b)})", P_ATOM
+            if has_call(a):  # `a + Random(b - a + 1)` uses the lower bound twice
+                a = self.hoist_value(a, "low", f"the lower bound of {name}()")
+            low = self.sub(a, P_ADD)
+            return f"{low} + Random({self.minus_expr(b, a, 1 if name == 'randint' else 0)})", P_ADD
+        if name == "randrange" and len(args) == 1:
+            return f"Random({self.text(args[0])})", P_ATOM
+        if name == "random" and not args:
+            return "Random(1000000) / 1000000.0", P_MUL
+        raise self.err(f"random.{name} is not supported", n, "use random.randint(a, b) or random.randrange(n)")
 
     def builtin_call(self, name: str, args: list, n: ast.Call) -> tuple[str, int]:
         def one() -> ast.expr:
@@ -1889,8 +2397,8 @@ class FunctionConverter:
                            "write `x = input(prompt)` or `n = int(input(prompt))`")
         if name == "print":
             raise self.err("print() cannot be used inside an expression", n)
-        if name in ("min", "max"):
-            raise self.err(f"{name}() has no Flowgorithm equivalent", n, "use an if statement")
+        if name in ("min", "max", "sum"):
+            return self.aggregate(name, args, n)
         if name in ("range", "enumerate"):
             raise self.err(f"{name}() is only supported in a for loop header", n)
         if name == "bool":
@@ -1942,6 +2450,11 @@ class FunctionConverter:
             return REAL if ext is not None and ext[0] == "math" else None
         if isinstance(n, ast.JoinedStr):
             return STRING
+        if isinstance(n, ast.IfExp):
+            try:
+                return join_types(self.infer(n.body), self.infer(n.orelse))
+            except TypeError:
+                return None
         if isinstance(n, ast.UnaryOp):
             return BOOLEAN if isinstance(n.op, ast.Not) else self.infer(n.operand)
         if isinstance(n, (ast.BoolOp, ast.Compare)):
@@ -1949,7 +2462,7 @@ class FunctionConverter:
         if isinstance(n, ast.BinOp):
             lt, rt = self.infer(n.left), self.infer(n.right)
             op = type(n.op)
-            if op is ast.Add and (lt == STRING or rt == STRING):
+            if op in (ast.Add, ast.Mult) and (lt == STRING or rt == STRING):
                 return STRING
             lt, rt = (INTEGER if t == BOOLEAN else t for t in (lt, rt))  # True + 1 == 2
             if op is ast.Div:
@@ -2002,13 +2515,24 @@ class FunctionConverter:
                 return REAL if len(n.args) == 2 else INTEGER
             if name == "pow":
                 return REAL
+            if name in ("min", "max", "sum") and n.args:
+                t = self.infer(n.args[0])
+                if isinstance(t, ArrayT) and (len(n.args) == 1 or name == "sum"):
+                    t = t.elem
+                    return join_types(t, self.infer(n.args[1])) if name == "sum" and len(n.args) == 2 else t
+                try:
+                    for a in n.args[1:]:
+                        t = join_types(t, self.infer(a))
+                except TypeError:
+                    return None
+                return t
             return None
         if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
             target = self.b.module_alias_target(self.m, fn.value.id)
             if target in ("math", "random"):
                 return self.infer_library(target, fn.attr)
-            if fn.attr == "strip":
-                return STRING
+        if isinstance(fn, ast.Attribute) and self.infer(fn.value) == STRING:
+            return STRING_METHODS.get(fn.attr)
         return None
 
     @staticmethod

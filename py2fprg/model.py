@@ -259,9 +259,10 @@ class Namespace:
     def __init__(self, taken: Optional[set[str]] = None):
         self.taken: set[str] = {t.lower() for t in (taken or set())}
 
-    def reserve(self, want: str) -> str:
+    def reserve(self, want: str, avoid: frozenset = frozenset()) -> str:
+        """A free name like `want` (`want2`, `want3`, ...); `avoid` holds lower-case names kept for later."""
         cand, n = want, 1
-        while cand.lower() in self.taken or cand.lower() in RESERVED:
+        while cand.lower() in self.taken or cand.lower() in RESERVED or cand.lower() in avoid:
             n += 1
             cand = f"{want}{n}"
         self.taken.add(cand.lower())

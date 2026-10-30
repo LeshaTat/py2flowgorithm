@@ -689,8 +689,9 @@ class ProgramBuilder:
         hidden counter for each for loop whose variable turned out to be read after the loop."""
         hints: dict[str, FgType] = {}
         hidden: frozenset = frozenset()
+        linear: frozenset = frozenset()
         for _ in range(MAX_PASSES):
-            conv = FunctionConverter(self, fi.module, fi, hints, hidden)
+            conv = FunctionConverter(self, fi.module, fi, hints, hidden, linear)
             if fi.script:  # module-level program: comments of/inside defs belong to them
                 for s in fi.module.tree.body:
                     if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -698,9 +699,9 @@ class ProgramBuilder:
                     elif isinstance(s, (ast.Import, ast.ImportFrom)) or is_main_guard(s):
                         conv.consumed.update(range(s.lineno, (s.end_lineno or s.lineno) + 1))
             fn = conv.convert()
-            if not conv.widened and conv.read_after <= hidden:
+            if not conv.widened and conv.read_after <= hidden and conv.need_linear <= linear:
                 break
-            hints, hidden = conv.type_hints(), hidden | conv.read_after
+            hints, hidden, linear = conv.type_hints(), hidden | conv.read_after, linear | conv.need_linear
         self.warnings.extend(conv.warnings)
         return fn
 
