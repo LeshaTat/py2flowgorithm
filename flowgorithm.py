@@ -222,33 +222,26 @@ def ToFixed(n, decimals: int) -> str:
     return f"{float(n):.{decimals}f}"
 
 
-def ToInteger(value) -> int:
-    """A whole number from text ("42"), or from a number (cutting off the fraction)."""
-    if type(value) is int:
-        return value
-    if type(value) is float:
-        return Int(value)
-    if type(value) is str:
-        if _INT_TEXT.fullmatch(value.strip()):
-            return int(value.strip())
-        raise FlowgorithmError(f"ToInteger() cannot convert {value!r}")
-    raise FlowgorithmError(f"ToInteger() cannot convert {_text_or_type(value)}")
+def ToInteger(text: str) -> int:
+    """A whole number from text: ToInteger("42") is 42 (Int(x) cuts off a number's fraction)."""
+    text = _string("ToInteger", text)
+    if _INT_TEXT.fullmatch(text.strip()):
+        return int(text.strip())
+    raise FlowgorithmError(f"ToInteger() cannot convert {text!r}")
 
 
-def ToReal(value) -> float:
-    if type(value) in (int, float):
-        return float(value)
-    if type(value) is str:
-        try:
-            return float(value.strip())
-        except ValueError:
-            raise FlowgorithmError(f"ToReal() cannot convert {value!r}") from None
-    raise FlowgorithmError(f"ToReal() cannot convert {_text_or_type(value)}")
+def ToReal(text: str) -> float:
+    """A number from text: ToReal("2.5") is 2.5."""
+    text = _string("ToReal", text)
+    try:
+        return float(text.strip())
+    except ValueError:
+        raise FlowgorithmError(f"ToReal() cannot convert {text!r}") from None
 
 
-def ToString(value) -> str:
-    """A value as text, exactly as Output would show it."""
-    return _text(value)
+def ToString(n) -> str:
+    """A number as text, exactly as Output shows it: ToString(2.0) is "2"."""
+    return _text(_number("ToString", n))
 
 
 # --------------------------------------------------------------------------- other

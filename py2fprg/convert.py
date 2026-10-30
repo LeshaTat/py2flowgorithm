@@ -37,8 +37,15 @@ LIBRARY = {
     "Arccos": ([NUM], REAL), "Arctan": ([NUM], REAL), "Ln": ([NUM], REAL), "Log": ([NUM], REAL),
     "Log10": ([NUM], REAL), "Len": ([STRING], INTEGER), "Char": ([STRING, INTEGER], STRING),
     "ToChar": ([INTEGER], STRING), "ToCode": ([STRING], INTEGER), "ToFixed": ([NUM, INTEGER], STRING),
-    "ToInteger": ([ANY], INTEGER), "ToReal": ([ANY], REAL), "ToString": ([ANY], STRING),
+    "ToInteger": ([STRING], INTEGER), "ToReal": ([STRING], REAL), "ToString": ([NUM], STRING),
     "Random": ([INTEGER], INTEGER), "Size": ([ARRAY], INTEGER),
+}
+CUT = "cut the fraction off with Int(...)"
+# What to write when a library function gets the wrong kind of value.
+ARG_HINTS = {
+    "ToInteger": "ToInteger() reads a whole number from text; Int(x) cuts off the fraction of a number",
+    "ToReal": "ToReal() reads a number from text; a number goes into a Real variable as it is (x: float = n)",
+    "ToString": "ToString() turns a number into text; Output(...) shows Booleans and Strings as they are",
 }
 # What to write instead of Python that is not part of the dialect.
 INSTEAD = {
@@ -608,7 +615,8 @@ class FunctionConverter:
             raise self.err("slices are not part of the Flowgorithm dialect", sub)
         idx = self.expr(sub.slice)
         if idx.type != INTEGER:
-            raise self.err("an array index is an Integer", sub.slice)
+            raise self.err(f"an array index is an Integer, not {type_name(idx.type)}", sub.slice,
+                           CUT if idx.type == REAL else "")
         if re.fullmatch(r"-\d+", idx.text):
             raise self.err("Flowgorithm arrays have no negative indexes", sub.slice,
                            "the last element is xs[Size(xs) - 1]")
@@ -692,7 +700,8 @@ class FunctionConverter:
                 raise self.err("the step of range() is a whole number other than 0", args[2])
         for e, node in ((start, args[0]), (stop, stop_node)):
             if e.type != INTEGER:
-                raise self.err("range() counts with Integers", node)
+                raise self.err(f"range() counts with Integers, not {type_name(e.type)}", node,
+                               CUT if e.type == REAL else "")
         inner = {id(t) for st in s.body for n in ast.walk(st) if isinstance(n, ast.For) for t in ast.walk(n.target)}
         if any(isinstance(n, ast.Name) and n.id == name and isinstance(n.ctx, ast.Store) and id(n) not in inner
                for st in s.body for n in ast.walk(st)):
@@ -850,10 +859,15 @@ class FunctionConverter:
         for e, node in ((a, n.left), (b, n.right)):
             if not is_numeric(e.type):
                 raise self.err(f"{sym} needs numbers, not {type_name(e.type)}", node)
-        if op is ast.Div or (op is ast.Pow and b.text.startswith("-")):
-            t = REAL
-        else:
-            t = INTEGER if a.type == b.type == INTEGER else REAL
+        if op is ast.Pow:
+            # Integer only for a whole-number exponent written out (n ** 2): 2 ** n is a Real for n < 0
+            whole = isinstance(n.right, ast.Constant) and type(n.right.value) is int
+            t = INTEGER if a.type == INTEGER and whole else REAL
+            # a sign binds tighter than ^ in Flowgorithm: (-2) ^ 2 is written with its parentheses
+            left, right = (f"({e.text})" if e.prec == P_UNARY else paren(e, prec, side)
+                           for e, side in ((a, "left"), (b, "right")))
+            return Ex(f"{left} ^ {right}", prec, t)
+        t = REAL if op is ast.Div or REAL in (a.type, b.type) else INTEGER
         return Ex(f"{paren(a, prec)} {sym} {paren(b, prec, 'right')}", prec, t)
 
     def e_BoolOp(self, n: ast.BoolOp) -> Ex:
@@ -921,7 +935,8 @@ class FunctionConverter:
             if bad:
                 what = {NUM: "a number", INTEGER: "an Integer", STRING: "a String", ARRAY: "an array",
                         ANY: "a value"}[kind]
-                raise self.err(f"{name}() needs {what}, not {type_name(e.type)}", a)
+                raise self.err(f"{name}() needs {what}, not {type_name(e.type)}", a,
+                               ARG_HINTS.get(name) or (CUT if kind == INTEGER and e.type == REAL else ""))
             texts.append(e.text)
             types.append(e.type)
         return Ex(f"{name}({', '.join(texts)})", P_ATOM, result or types[0])

@@ -108,11 +108,12 @@ Expressions:
 | Python | Flowgorithm |
 |---|---|
 | `42`, `2.5`, `"text"`, `True`, `False`, `pi` | the same (`true`, `false`) |
-| `+ - * / %`, `a ** b`, `-x` | `+ - * / %`, `a ^ b`, `-x` (`/` always gives a Real) |
+| `+ - * / %`, `a ** b`, `-x` | `+ - * / %`, `a ^ b`, `-x` (`/` always gives a Real; `a ** b` is an Integer only for a whole-number exponent written out, like `n ** 2`) |
 | `"Hello " + name`, `"n = " + ToString(n)` | `"Hello " & name` (`+` joins Strings; numbers go through `ToString`) |
 | `==  !=  <  <=  >  >=`, `and  or  not` | the same (one comparison at a time; `and`/`or`/`not` need true/false) |
 | `xs[i]`, `Size(xs)`, `Len(s)`, `Char(s, i)` | the same (indexes count from 0) |
 | `Abs Arccos Arcsin Arctan Cos Int Ln Log Log10 Random Sgn Sin Sqrt Tan ToChar ToCode ToFixed ToInteger ToReal ToString` | the same intrinsic functions |
+| `ToInteger("42")`, `ToReal("2.5")`, `ToString(n)` | as Flowgorithm documents them: the first two read text, `ToString` writes a number (`Int(x)` cuts off a fraction) |
 
 Types: a variable gets its type from its first value (or an annotation like `total: float = 0`)
 and keeps it. An Integer may go into a Real variable, not the other way round: `total = 0`

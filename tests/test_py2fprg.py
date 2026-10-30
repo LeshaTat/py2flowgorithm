@@ -356,6 +356,17 @@ class ExpressionTest(unittest.TestCase):
         self.assertEqual(self.expr("a % 2"), "a % 2")
         self.assertEqual(self.expr("x / 2"), "x / 2")
 
+    def test_powers(self):
+        self.assertEqual(self.expr("2 ** 3 ** 2"), "2 ^ (3 ^ 2)")
+        self.assertEqual(self.expr("(-a) ** 2"), "(-a) ^ 2")  # a sign binds tighter than ^ in Flowgorithm
+        self.assertEqual(self.expr("-a ** 2"), "-(a ^ 2)")
+        self.assertEqual(self.expr("a ** -b"), "a ^ (-b)")
+        # Integer only with a whole-number exponent written out: 2 ** b is a Real when b < 0
+        body = main_body("a = 2\nb = 3\nsquare = a ** 2\npower = a ** b\nroot = a ** 0.5")
+        self.assertIn('<declare name="a, b, square" type="Integer"', body)
+        self.assertIn('<declare name="power, root" type="Real"', body)
+        self.assertIn("Int(...)", error_of(program("a = 2\nb = 3\nxs = [0] * 9\nxs[a ** b] = 1")))
+
     def test_logic_and_comparison(self):
         self.assertEqual(self.expr("a < b and not ok or c == 3"), "a < b and not ok or c == 3")
         self.assertEqual(self.expr("(a < b or ok) and c != 2"), "(a < b or ok) and c != 2")
@@ -381,6 +392,8 @@ class ExpressionTest(unittest.TestCase):
             "n = Input()": "", "if a:\n    pass": "a condition is true or false", "a, b = b, a": "one variable at a time",
             "n = Random": "is not a value", "n = q": "used before it gets a value", "n = x in xs": "comparisons are not part",
             "if (n := 3) > a:\n    pass": "assignment expressions (:=)", "n = {1, 2}": "sets",
+            "n = ToInteger(2.5)": "Int(x) cuts off the fraction", "n = ToReal(a)": "goes into a Real variable",
+            "n = ToString(ok)": "ToString() turns a number into text", "n = ToString(s)": "needs a number",
         }
         setup = 'a = 1\nb = 2\ns = "x"\nok = True\nxs = [0] * 3\n'
         for code, msg in cases.items():

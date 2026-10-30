@@ -76,7 +76,6 @@ class FunctionsTest(unittest.TestCase):
         self.assertEqual(fg.ToChar(97), "a")
         self.assertEqual(fg.ToFixed(2.5, 2), "2.50")
         self.assertEqual(fg.ToInteger("-12"), -12)
-        self.assertEqual(fg.ToInteger(7.9), 7)
         self.assertEqual(fg.ToReal("2.5"), 2.5)
         self.assertEqual(fg.ToString(3.0), "3")
         self.assertEqual(fg.Size([0] * 4), 4)
@@ -90,7 +89,10 @@ class FunctionsTest(unittest.TestCase):
     def test_run_time_errors(self):
         for call in (lambda: fg.Char("ab", 2), lambda: fg.ToCode(""), lambda: fg.Sqrt(-1), lambda: fg.Random(0),
                      lambda: fg.Ln(0), lambda: fg.Arcsin(2), lambda: fg.ToInteger("1.5"), lambda: fg.Len(5),
-                     lambda: fg.Size("abc"), lambda: fg.Char("ab", 1.0)):
+                     lambda: fg.Size("abc"), lambda: fg.Char("ab", 1.0),
+                     # the conversions take what Flowgorithm documents: text, or a number for ToString
+                     lambda: fg.ToInteger(7.9), lambda: fg.ToReal(5), lambda: fg.ToString(True),
+                     lambda: fg.ToString("x")):
             with self.assertRaises(fg.FlowgorithmError):
                 call()
 
@@ -99,8 +101,7 @@ class SameAsInterpreterTest(unittest.TestCase):
     """The library gives what fprg_run (and so the generated flowchart) gives."""
 
     CASES = ["Int(-7 / 2)", "Abs(-2.5)", "Sgn(0)", "Sqrt(2)", "ToFixed(2.675, 2)", "ToFixed(1, 3)",
-             "ToString(2.0)", "ToString(0.1)", "ToString(true)", "ToInteger(\"42\")", "ToInteger(3.99)",
-             "ToReal(\"1e3\")", "Len(\"hello\")", "Char(\"hello\", 4)", "ToCode(\"z\")", "ToChar(65)",
+             "ToString(2.0)", "ToString(0.1)", "ToInteger(\"42\")", "ToReal(\"1e3\")", "Len(\"hello\")", "Char(\"hello\", 4)", "ToCode(\"z\")", "ToChar(65)",
              "Log(10)", "Log10(2)", "Arctan(1)", "Cos(pi)"]
 
     def test_functions(self):
@@ -113,7 +114,7 @@ class SameAsInterpreterTest(unittest.TestCase):
     def test_formatting(self):
         for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, 1e16, 123456789.0, True, "x"):
             with self.subTest(value=value):
-                self.assertEqual(fg.ToString(value), fprg_run.format_value(value))
+                self.assertEqual(output(value), fprg_run.format_value(value) + "\n")
 
 
 if __name__ == "__main__":
