@@ -19,8 +19,8 @@ from .program import ProgramBuilder
 from .writer import write_program
 
 __version__ = "0.2.0"
-__all__ = ["convert_source", "convert_file", "convert_path", "ConvertError", "ProgramBuilder", "write_program",
-           "Program", "Warning_", "__version__"]
+__all__ = ["convert_source", "convert_file", "convert_path", "program_files", "ConvertError", "ProgramBuilder",
+           "write_program", "Program", "Warning_", "__version__"]
 
 SKIP_FILES = {"flowgorithm.py", "conftest.py", "setup.py"}
 
@@ -60,15 +60,19 @@ def is_program_file(path: str) -> bool:
         return False
 
 
+def program_files(path: str) -> list[str]:
+    """The program file itself, or the program files of a folder (not in sub-folders)."""
+    if not os.path.isdir(path):
+        return [path]
+    files = sorted(os.path.join(path, f) for f in os.listdir(path) if is_program_file(os.path.join(path, f)))
+    if not files:
+        raise ConvertError("no program files here (a .py file with `def main():`)", None, filename=path)
+    return files
+
+
 def convert_path(path: str, **kw) -> list[tuple[str, str]]:
     """Convert a program file, or every program file in a folder (not in sub-folders).
 
     Returns ``[(output_path, xml), ...]``; the output goes next to the program (``.fprg``).
     """
-    if os.path.isdir(path):
-        files = sorted(os.path.join(path, f) for f in os.listdir(path) if is_program_file(os.path.join(path, f)))
-        if not files:
-            raise ConvertError("no program files here (a .py file with `def main():`)", None, filename=path)
-    else:
-        files = [path]
-    return [(os.path.splitext(f)[0] + ".fprg", convert_file(f, **kw)) for f in files]
+    return [(os.path.splitext(f)[0] + ".fprg", convert_file(f, **kw)) for f in program_files(path)]

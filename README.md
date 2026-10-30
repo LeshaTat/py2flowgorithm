@@ -48,7 +48,8 @@ Everything is standard-library Python 3.11+.
   or just copy `flowgorithm.py` next to the program.
 * `python3 -m py2fprg program.py` writes `program.fprg` next to it;
   `python3 -m py2fprg exercises/` converts every program file in a folder (a `.py` file with
-  `def main():`; test files and `flowgorithm.py` are skipped).
+  `def main():`; test files and `flowgorithm.py` are skipped). Several files and folders can be
+  given at once; a program with an error is reported and the others are still converted.
 * `--check` only checks the program, `--lint` validates the generated file, `--svg` draws a
   preview with Graphviz, `--stdout` prints the XML, `-o` names the output.
 

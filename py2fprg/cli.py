@@ -1,11 +1,11 @@
-"""Command line interface: python -m py2fprg PATH [options]."""
+"""Command line interface: python -m py2fprg PATH... [options]."""
 from __future__ import annotations
 
 import argparse
 import os
 import sys
 
-from . import __version__, convert_path
+from . import __version__, convert_file, program_files
 from .model import ConvertError
 
 
@@ -20,8 +20,9 @@ def main(argv=None) -> int:
         description="Turn a Python program written in the Flowgorithm dialect (with the flowgorithm library) "
                     "into a Flowgorithm .fprg flowchart.",
         epilog="A folder converts every program file in it (a .py file with `def main():`; test files and "
-               "flowgorithm.py are skipped). The .fprg goes next to each program.")
-    p.add_argument("path", help="a program file, or a folder of program files")
+               "flowgorithm.py are skipped). The .fprg goes next to each program. A program with an error is "
+               "reported and the others are still converted.")
+    p.add_argument("paths", nargs="+", metavar="path", help="a program file, or a folder of program files")
     p.add_argument("-o", "--output", help="output .fprg file (one program) or folder")
     p.add_argument("--no-comments", action="store_true", help="do not turn # comments and docstrings into Comment shapes")
     p.add_argument("--title", default="", help="program name shown in Flowgorithm (default: docstring or file name)")
@@ -38,20 +39,36 @@ def main(argv=None) -> int:
     p.add_argument("--version", action="version", version=f"py2fprg {__version__}")
     a = p.parse_args(argv)
 
-    warnings: list = []
-    try:
-        outputs = convert_path(a.path, title=a.title, author=a.author, comments=not a.no_comments,
+    files: list[str] = []
+    failed = 0
+    for path in a.paths:
+        try:
+            files += program_files(path)
+        except ConvertError as e:
+            print(e.format(), file=sys.stderr)
+            failed += 1
+    if a.output and a.output.lower().endswith(".fprg") and len(files) > 1:
+        p.error(f"-o {a.output} names one file, but there are {len(files)} programs; give a folder")
+    outputs = []
+    for f in files:
+        warnings: list = []
+        error = None
+        try:
+            xml = convert_file(f, title=a.title, author=a.author, comments=not a.no_comments,
                                fileversion=a.fileversion, metadata=not a.no_metadata, warnings=warnings)
-    except ConvertError as e:
+        except ConvertError as e:
+            error = e
         if not a.quiet:
             for w in warnings:
                 print(w.format(), file=sys.stderr)
-        print(e.format(), file=sys.stderr)
-        return 1
-    if not a.quiet:
-        for w in warnings:
-            print(w.format(), file=sys.stderr)
-    rc = 0
+        if error is not None:
+            print(error.format(), file=sys.stderr)
+            failed += 1
+            continue
+        outputs.append((os.path.splitext(f)[0] + ".fprg", xml))
+    if failed and len(files) > 1:
+        print(f"{len(outputs)} of {len(files)} programs converted", file=sys.stderr)
+    rc = 1 if failed else 0
     if a.lint:
         rc = max(rc, lint_outputs(outputs, a.quiet))
     if a.check:

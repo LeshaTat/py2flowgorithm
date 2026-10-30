@@ -491,6 +491,16 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(cli_main([os.path.join(root, "bad.py")]), 1)
         self.assertRegex(err.getvalue(), r"bad\.py:\d+:5: error: print\(\) is not part of the Flowgorithm dialect")
         self.assertIn("hint: use Output(...)", err.getvalue())
+        # a whole folder (and more paths): a program with an error does not stop the others
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(cli_main([root, os.path.join(root, "ex1.py"), "--check"]), 1)
+        self.assertEqual(re.findall(r"ok: (\w+)\.fprg", out.getvalue()), ["ex1", "ex2", "ex1"])
+        self.assertIn("bad.py", err.getvalue())
+        self.assertIn("3 of 4 programs converted", err.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                self.assertRaises(SystemExit):
+            cli_main([root, "-o", os.path.join(root, "all.fprg")])
 
     def test_examples_convert(self):
         for path in (os.path.join(ROOT, "examples", "guess_number.py"),
