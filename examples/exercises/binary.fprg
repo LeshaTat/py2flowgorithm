@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Binary"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Binary.&#13;&#10;&#13;&#10;Show a number in base 2."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="n" type="Integer" array="False" size=""/>
+            <output expression="&quot;A whole number (0 or more)?&quot;" newline="True"/>
+            <input variable="n"/>
+            <output expression="n &amp; &quot; is &quot; &amp; toBinary(n) &amp; &quot; in binary&quot;" newline="True"/>
+        </body>
+    </function>
+    <function name="toBinary" type="String" variable="digits">
+        <parameters>
+            <parameter name="n" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="digits" type="String" array="False" size=""/>
+            <if expression="n == 0">
+                <then>
+                    <assign variable="digits" expression="&quot;0&quot;"/>
+                </then>
+                <else>
+                    <assign variable="digits" expression="&quot;&quot;"/>
+                    <while expression="n &gt; 0">
+                        <assign variable="digits" expression="ToString(n % 2) &amp; digits"/>
+                        <assign variable="n" expression="Int(n / 2)"/>
+                    </while>
+                </else>
+            </if>
+        </body>
+    </function>
+</flowgorithm>

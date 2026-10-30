@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Prime numbers"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Prime numbers.&#13;&#10;&#13;&#10;List the prime numbers up to a limit."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="limit, count, n" type="Integer" array="False" size=""/>
+            <output expression="&quot;Up to?&quot;" newline="True"/>
+            <input variable="limit"/>
+            <assign variable="count" expression="0"/>
+            <for variable="n" start="2" end="limit" direction="inc" step="1">
+                <if expression="isPrime(n)">
+                    <then>
+                        <output expression="n &amp; &quot; &quot;" newline="False"/>
+                        <assign variable="count" expression="count + 1"/>
+                    </then>
+                    <else/>
+                </if>
+            </for>
+            <output expression="&quot;&quot;" newline="True"/>
+            <output expression="count &amp; &quot; primes&quot;" newline="True"/>
+        </body>
+    </function>
+    <function name="isPrime" type="Boolean" variable="prime">
+        <parameters>
+            <parameter name="n" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="True when n has no divisor other than 1 and itself."/>
+            <declare name="prime" type="Boolean" array="False" size=""/>
+            <declare name="d" type="Integer" array="False" size=""/>
+            <assign variable="prime" expression="n &gt;= 2"/>
+            <assign variable="d" expression="2"/>
+            <while expression="prime and d * d &lt;= n">
+                <if expression="n % d == 0">
+                    <then>
+                        <assign variable="prime" expression="false"/>
+                    </then>
+                    <else/>
+                </if>
+                <assign variable="d" expression="d + 1"/>
+            </while>
+        </body>
+    </function>
+</flowgorithm>

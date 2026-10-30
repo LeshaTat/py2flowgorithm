@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Greatest common divisor"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Greatest common divisor.&#13;&#10;&#13;&#10;Euclid's algorithm, with a loop and with recursion."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="a, b" type="Integer" array="False" size=""/>
+            <output expression="&quot;Two numbers?&quot;" newline="True"/>
+            <input variable="a"/>
+            <input variable="b"/>
+            <output expression="&quot;gcd = &quot; &amp; gcd(a, b) &amp; &quot; = &quot; &amp; gcdRecursive(a, b)" newline="True"/>
+            <output expression="&quot;lcm = &quot; &amp; Int(a * b / gcd(a, b))" newline="True"/>
+        </body>
+    </function>
+    <function name="gcd" type="Integer" variable="result">
+        <parameters>
+            <parameter name="a" type="Integer" array="False"/>
+            <parameter name="b" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="r, result" type="Integer" array="False" size=""/>
+            <while expression="b != 0">
+                <assign variable="r" expression="a % b"/>
+                <assign variable="a" expression="b"/>
+                <assign variable="b" expression="r"/>
+            </while>
+            <assign variable="result" expression="a"/>
+        </body>
+    </function>
+    <function name="gcdRecursive" type="Integer" variable="result">
+        <parameters>
+            <parameter name="a" type="Integer" array="False"/>
+            <parameter name="b" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="result" type="Integer" array="False" size=""/>
+            <if expression="b == 0">
+                <then>
+                    <assign variable="result" expression="a"/>
+                </then>
+                <else>
+                    <assign variable="result" expression="gcdRecursive(b, a % b)"/>
+                </else>
+            </if>
+        </body>
+    </function>
+</flowgorithm>

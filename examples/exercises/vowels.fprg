@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Vowels"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Vowels.&#13;&#10;&#13;&#10;Count the (lower-case) vowels in a sentence."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="text" type="String" array="False" size=""/>
+            <declare name="vowels, i" type="Integer" array="False" size=""/>
+            <output expression="&quot;A sentence?&quot;" newline="True"/>
+            <input variable="text"/>
+            <assign variable="vowels" expression="0"/>
+            <for variable="i" start="0" end="Len(text) - 1" direction="inc" step="1">
+                <if expression="isVowel(Char(text, i))">
+                    <then>
+                        <assign variable="vowels" expression="vowels + 1"/>
+                    </then>
+                    <else/>
+                </if>
+            </for>
+            <output expression="vowels &amp; &quot; vowels out of &quot; &amp; Len(text) &amp; &quot; characters&quot;" newline="True"/>
+        </body>
+    </function>
+    <function name="isVowel" type="Boolean" variable="result">
+        <parameters>
+            <parameter name="c" type="String" array="False"/>
+        </parameters>
+        <body>
+            <declare name="result" type="Boolean" array="False" size=""/>
+            <assign variable="result" expression="c == &quot;a&quot; or c == &quot;e&quot; or c == &quot;i&quot; or c == &quot;o&quot; or c == &quot;u&quot;"/>
+        </body>
+    </function>
+</flowgorithm>

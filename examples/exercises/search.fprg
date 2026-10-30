@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Linear search"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Linear search.&#13;&#10;&#13;&#10;Find a value in an array."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="wanted, i, largest, k, total" type="Integer" array="False" size=""/>
+            <declare name="found" type="Boolean" array="False" size=""/>
+            <declare name="values" type="Integer" array="True" size="6"/>
+            <assign variable="values[0]" expression="4"/>
+            <assign variable="values[1]" expression="8"/>
+            <assign variable="values[2]" expression="15"/>
+            <assign variable="values[3]" expression="16"/>
+            <assign variable="values[4]" expression="23"/>
+            <assign variable="values[5]" expression="42"/>
+            <output expression="&quot;Find what?&quot;" newline="True"/>
+            <input variable="wanted"/>
+            <assign variable="found" expression="false"/>
+            <assign variable="i" expression="0"/>
+            <while expression="i &lt; Size(values) and not found">
+                <if expression="values[i] == wanted">
+                    <then>
+                        <assign variable="found" expression="true"/>
+                    </then>
+                    <else>
+                        <assign variable="i" expression="i + 1"/>
+                    </else>
+                </if>
+            </while>
+            <if expression="found">
+                <then>
+                    <output expression="wanted &amp; &quot; is at index &quot; &amp; i" newline="True"/>
+                </then>
+                <else>
+                    <output expression="wanted &amp; &quot; is not in the list&quot;" newline="True"/>
+                </else>
+            </if>
+            <comment text="the largest value"/>
+            <assign variable="largest" expression="values[0]"/>
+            <for variable="k" start="1" end="Size(values) - 1" direction="inc" step="1">
+                <if expression="values[k] &gt; largest">
+                    <then>
+                        <assign variable="largest" expression="values[k]"/>
+                    </then>
+                    <else/>
+                </if>
+            </for>
+            <output expression="&quot;Largest: &quot; &amp; largest" newline="True"/>
+            <assign variable="total" expression="0"/>
+            <for variable="k" start="0" end="Size(values) - 1" direction="inc" step="1">
+                <assign variable="total" expression="total + values[k]"/>
+            </for>
+            <output expression="&quot;Average: &quot; &amp; ToFixed(total / Size(values), 2)" newline="True"/>
+        </body>
+    </function>
+</flowgorithm>

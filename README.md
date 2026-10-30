@@ -173,6 +173,14 @@ whole runs with scripted answers by patching `builtins.input` (what `Input` read
 * `examples/arith_quiz/quiz.py` — an arithmetic quiz with input validation, arrays, Random and
   several functions, and its tests in `examples/arith_quiz/test_quiz.py`
   (`cd examples/arith_quiz && python3 -m unittest -v`).
+* `examples/exercises/` — ten classic first exercises, each a short program: `fizzbuzz`
+  (`%`, `elif`), `primes` (a Boolean function, a While with two conditions), `bubble` (an array,
+  nested For loops, a swap), `palindrome` (`Char`, `Len`, a For counting down), `binary`
+  (building a String, `Int(n / 2)`), `search` (a While with a found flag instead of `break`,
+  the largest value, `ToFixed`), `table` (nested loops, `newline=False`, a For with a step), `gcd`
+  (a loop and recursion), `vowels` (a function returning a condition), `grades` (`elif` chains,
+  a loop that stops at -1). `tests/test_exercises.py` plays each one in Python and as a
+  flowchart and checks that both print the same.
 
 The `.fprg` files next to them are the converter's output.
 

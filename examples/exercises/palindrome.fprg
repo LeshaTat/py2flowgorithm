@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Palindrome"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Palindrome.&#13;&#10;&#13;&#10;Is a word the same backwards?"/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="word" type="String" array="False" size=""/>
+            <output expression="&quot;A word?&quot;" newline="True"/>
+            <input variable="word"/>
+            <output expression="reverse(word)" newline="True"/>
+            <if expression="isPalindrome(word)">
+                <then>
+                    <output expression="word &amp; &quot; is a palindrome&quot;" newline="True"/>
+                </then>
+                <else>
+                    <output expression="word &amp; &quot; is not a palindrome&quot;" newline="True"/>
+                </else>
+            </if>
+        </body>
+    </function>
+    <function name="isPalindrome" type="Boolean" variable="same">
+        <parameters>
+            <parameter name="word" type="String" array="False"/>
+        </parameters>
+        <body>
+            <declare name="same" type="Boolean" array="False" size=""/>
+            <declare name="left, right" type="Integer" array="False" size=""/>
+            <assign variable="left" expression="0"/>
+            <assign variable="right" expression="Len(word) - 1"/>
+            <assign variable="same" expression="true"/>
+            <while expression="same and left &lt; right">
+                <if expression="Char(word, left) != Char(word, right)">
+                    <then>
+                        <assign variable="same" expression="false"/>
+                    </then>
+                    <else/>
+                </if>
+                <assign variable="left" expression="left + 1"/>
+                <assign variable="right" expression="right - 1"/>
+            </while>
+        </body>
+    </function>
+    <function name="reverse" type="String" variable="result">
+        <parameters>
+            <parameter name="word" type="String" array="False"/>
+        </parameters>
+        <body>
+            <declare name="result" type="String" array="False" size=""/>
+            <declare name="i" type="Integer" array="False" size=""/>
+            <assign variable="result" expression="&quot;&quot;"/>
+            <for variable="i" start="Len(word) - 1" end="0" direction="dec" step="1">
+                <assign variable="result" expression="result &amp; Char(word, i)"/>
+            </for>
+        </body>
+    </function>
+</flowgorithm>

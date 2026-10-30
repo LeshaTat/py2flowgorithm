@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Bubble sort"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Bubble sort.&#13;&#10;&#13;&#10;Read numbers into an array, sort them and print them."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="COUNT, i, done, temp" type="Integer" array="False" size=""/>
+            <assign variable="COUNT" expression="5"/>
+            <declare name="numbers" type="Integer" array="True" size="COUNT"/>
+            <for variable="i" start="0" end="COUNT - 1" direction="inc" step="1">
+                <output expression="&quot;Number &quot; &amp; i + 1 &amp; &quot;?&quot;" newline="True"/>
+                <input variable="numbers[i]"/>
+            </for>
+            <comment text="sort: the largest value bubbles to the end in every pass"/>
+            <for variable="done" start="0" end="COUNT - 2" direction="inc" step="1">
+                <for variable="i" start="0" end="COUNT - 1 - done - 1" direction="inc" step="1">
+                    <if expression="numbers[i] &gt; numbers[i + 1]">
+                        <then>
+                            <assign variable="temp" expression="numbers[i]"/>
+                            <assign variable="numbers[i]" expression="numbers[i + 1]"/>
+                            <assign variable="numbers[i + 1]" expression="temp"/>
+                        </then>
+                        <else/>
+                    </if>
+                </for>
+            </for>
+            <for variable="i" start="0" end="COUNT - 1" direction="inc" step="1">
+                <output expression="numbers[i]" newline="True"/>
+            </for>
+        </body>
+    </function>
+</flowgorithm>

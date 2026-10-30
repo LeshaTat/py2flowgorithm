@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Tables"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Tables.&#13;&#10;&#13;&#10;A multiplication table and a temperature table."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="n, row, col, c" type="Integer" array="False" size=""/>
+            <declare name="f" type="Real" array="False" size=""/>
+            <output expression="&quot;Size of the table?&quot;" newline="True"/>
+            <input variable="n"/>
+            <for variable="row" start="1" end="n" direction="inc" step="1">
+                <for variable="col" start="1" end="n" direction="inc" step="1">
+                    <output expression="row * col &amp; ToChar(9)" newline="False"/>
+                </for>
+                <output expression="&quot;&quot;" newline="True"/>
+            </for>
+            <for variable="c" start="-10" end="40" direction="inc" step="10">
+                <assign variable="f" expression="c * 9 / 5 + 32"/>
+                <output expression="c &amp; &quot; C = &quot; &amp; ToFixed(f, 1) &amp; &quot; F&quot;" newline="True"/>
+            </for>
+        </body>
+    </function>
+</flowgorithm>

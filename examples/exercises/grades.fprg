@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Grades"/>
+        <attribute name="authors" value="alekseitatuzov"/>
+        <attribute name="about" value="Grades.&#13;&#10;&#13;&#10;Turn scores into letter grades until the user types -1."/>
+        <attribute name="saved" value="2026-10-30 08:10:20 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswODoxMDoyMCBQTTsxOzA="/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="count, total, score" type="Integer" array="False" size=""/>
+            <assign variable="count" expression="0"/>
+            <assign variable="total" expression="0"/>
+            <output expression="&quot;Score (-1 to stop)?&quot;" newline="True"/>
+            <input variable="score"/>
+            <while expression="score != -1">
+                <output expression="&quot;Grade: &quot; &amp; letter(score)" newline="True"/>
+                <assign variable="count" expression="count + 1"/>
+                <assign variable="total" expression="total + score"/>
+                <output expression="&quot;Score (-1 to stop)?&quot;" newline="True"/>
+                <input variable="score"/>
+            </while>
+            <if expression="count &gt; 0">
+                <then>
+                    <output expression="&quot;Average: &quot; &amp; total / count" newline="True"/>
+                </then>
+                <else/>
+            </if>
+        </body>
+    </function>
+    <function name="letter" type="String" variable="grade">
+        <parameters>
+            <parameter name="score" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <declare name="grade" type="String" array="False" size=""/>
+            <if expression="score &gt;= 90">
+                <then>
+                    <assign variable="grade" expression="&quot;A&quot;"/>
+                </then>
+                <else>
+                    <if expression="score &gt;= 80">
+                        <then>
+                            <assign variable="grade" expression="&quot;B&quot;"/>
+                        </then>
+                        <else>
+                            <if expression="score &gt;= 70">
+                                <then>
+                                    <assign variable="grade" expression="&quot;C&quot;"/>
+                                </then>
+                                <else>
+                                    <if expression="score &gt;= 60">
+                                        <then>
+                                            <assign variable="grade" expression="&quot;D&quot;"/>
+                                        </then>
+                                        <else>
+                                            <assign variable="grade" expression="&quot;F&quot;"/>
+                                        </else>
+                                    </if>
+                                </else>
+                            </if>
+                        </else>
+                    </if>
+                </else>
+            </if>
+        </body>
+    </function>
+</flowgorithm>
