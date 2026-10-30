@@ -27,7 +27,8 @@ from typing import Optional
 
 from .convert import FunctionConverter, annotation_type, literal_text, literal_value, value_type
 from .layout import KNOWN_DIRECTIVES, IgnorePass, header_end, parse_directive, scan_source
-from .model import ConvertError, FgType, Function, Namespace, Program, VOID, Warning_, legalize, type_name
+from .model import (ConvertError, FgType, Function, Namespace, Program, VOID, Warning_, legalize, rename_note,
+                    type_name)
 
 
 @dataclass
@@ -146,9 +147,9 @@ class ProgramBuilder:
             if not fi.is_main:
                 want = legalize(fi.name)
                 fi.fg_name = ns.reserve(want)
-                if fi.fg_name.lower() != want.lower():
-                    self.warnings.append(Warning_(f"function '{fi.name}' is called '{fi.fg_name}' in the flowchart "
-                                                  "(the name clashes)", m.path, fi.node.lineno))
+                note = rename_note("function", fi.name, fi.fg_name)
+                if note:
+                    self.warnings.append(Warning_(note, m.path, fi.node.lineno))
 
     @staticmethod
     def calls_main(s: ast.stmt) -> bool:

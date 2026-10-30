@@ -370,6 +370,12 @@ class StatementTest(unittest.TestCase):
                                            "def ask() -> bool:\n    answer = Input(str)\n    return answer == \"y\"\n")[0])
         self.assertIn("Python orders Strings by character code", warnings_of('s = "a"\nif s < "B":\n    pass')[0])
         self.assertEqual(warnings_of('i = 0\nok = True\ns = "a"\nif i < 3 and ok or s == "b":\n    pass'), [])
+        # a renamed name is reported, unless only its spelling changed (snake_case -> camelCase)
+        self.assertEqual(warnings_of("size = 2\nmy_total = 1\nOutput(size, my_total, half(2))",
+                                     "def half(real: float) -> float:\n    return real / 2\n"),
+                         ["parameter 'real' is called 'realVal' in the flowchart ('real' is a Flowgorithm word)",
+                          "variable 'size' is called 'sizeVal' in the flowchart ('size' is a Flowgorithm word)"])
+        self.assertIn("the name clashes", warnings_of("total = 1\nTotal = 2\nOutput(total, Total)")[0])
 
 
 class ExpressionTest(unittest.TestCase):

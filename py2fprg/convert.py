@@ -16,7 +16,7 @@ from .layout import find_else_line, header_end, indent_of, parse_directive, trai
 from .model import (ArrayT, Assign, BOOLEAN, Breakpoint, Call, Comment, ConvertError, Declare, Do, FgType,
                     For, Function, INTEGER, If, Input, Namespace, Output, P_ADD, P_AND, P_ATOM, P_CAT,
                     P_OR, P_POW, P_REL, P_UNARY, Param, REAL, STRING, VOID, Warning_, While, is_numeric,
-                    legalize, type_name, P_MUL)
+                    legalize, rename_note, type_name, P_MUL)
 
 if TYPE_CHECKING:  # pragma: no cover
     from .program import FuncInfo, ProgramBuilder
@@ -303,6 +303,9 @@ class FunctionConverter:
         params = []
         for p in f.params:
             fg = self.ns.reserve(legalize(p.name))
+            note = rename_note("parameter", p.name, fg)
+            if note:
+                self.warn(note, self.f.node)
             self.vars[p.name] = VarInfo(p.name, fg, p.type, self.next_order(), is_param=True, declared=True)
             arr = isinstance(p.type, ArrayT)
             params.append(Param(fg, p.type.elem if arr else p.type, arr))
@@ -577,9 +580,9 @@ class FunctionConverter:
     def new_var(self, name: str, t: FgType, node: ast.AST, declared: bool = False) -> VarInfo:
         want = legalize(name)
         fg = self.ns.reserve(want)
-        if fg.lower() != want.lower():
-            self.warn(f"variable '{name}' is called '{fg}' in the flowchart (Flowgorithm ignores case and has no "
-                      f"underscores, so the name clashes with another one)", node)
+        note = rename_note("variable", name, fg)
+        if note:
+            self.warn(note, node)
         info = VarInfo(name, fg, t, self.next_order(), declared=declared)
         self.vars[name] = info
         return info

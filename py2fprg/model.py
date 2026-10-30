@@ -224,6 +224,14 @@ def legalize(name: str) -> str:
     leading digits get a prefix, reserved words get a ``Val`` suffix.  Uniqueness is handled by
     Namespace.
     """
+    out = identifier(name)
+    if out.lower() in RESERVED:
+        out += "Val"
+    return out
+
+
+def identifier(name: str) -> str:
+    """The Flowgorithm spelling of a Python name, before reserved words are avoided."""
     name = ascii_name(name)
     parts = [p for p in name.split("_") if p]
     if not parts:
@@ -234,9 +242,18 @@ def legalize(name: str) -> str:
     out = re.sub(r"[^A-Za-z0-9]", "", out) or "v"
     if not out[0].isalpha():
         out = "v" + out
-    if out.lower() in RESERVED:
-        out += "Val"
     return out
+
+
+def rename_note(kind: str, name: str, fg: str) -> str:
+    """Why `name` has another name `fg` in the flowchart, when it is more than the spelling
+    (snake_case -> camelCase is expected); "" when there is nothing to say."""
+    if identifier(name).lower() in RESERVED:
+        return f"{kind} '{name}' is called '{fg}' in the flowchart ('{identifier(name)}' is a Flowgorithm word)"
+    if fg.lower() != legalize(name).lower():
+        return (f"{kind} '{name}' is called '{fg}' in the flowchart (Flowgorithm ignores case and has no "
+                "underscores, so the name clashes with another one)")
+    return ""
 
 
 class Namespace:
