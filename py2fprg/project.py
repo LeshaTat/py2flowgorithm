@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import os
+import sys
 import tokenize
 from dataclasses import dataclass, field
 from typing import Optional
@@ -13,6 +15,22 @@ from .model import (ArrayT, BOOLEAN, ConvertError, FgType, Function, INTEGER, Na
                     STRING, VOID, Warning_, join_types, legalize)
 
 MAX_PASSES = 6  # type-widening passes per function (types only grow, so this converges quickly)
+RECURSION_LIMIT = 60_000  # expressions are converted recursively: `x + x + ... + x` with 20000 terms
+
+
+@contextlib.contextmanager
+def deep_recursion():
+    """Long expressions nest deeply (a sum of n terms is n levels); Python 3.11+ keeps pure-Python
+    recursion off the C stack, so a higher limit is safe while converting."""
+    old = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(old, RECURSION_LIMIT))
+    try:
+        yield
+    except RecursionError:
+        raise ConvertError("an expression is nested too deeply to convert", None,
+                           "split it into several assignments") from None
+    finally:
+        sys.setrecursionlimit(old)
 
 IGNORED_DIRS = {"tests", "test", "__pycache__", ".git", "venv", ".venv", "env", "build", "dist",
                 "node_modules", ".tox", ".mypy_cache", ".pytest_cache", "site-packages", ".idea", ".vscode"}
@@ -611,6 +629,10 @@ class ProgramBuilder:
         return main_fi
 
     def build(self, entry: ModuleInfo, title: str = "") -> Program:
+        with deep_recursion():
+            return self._build(entry, title)
+
+    def _build(self, entry: ModuleInfo, title: str = "") -> Program:
         for m in self.modules.values():  # nothing from an earlier build (another entry) carries over
             for fi in m.functions.values():
                 fi.is_main = False
@@ -690,8 +712,9 @@ class ProgramBuilder:
         hints: dict[str, FgType] = {}
         hidden: frozenset = frozenset()
         linear: frozenset = frozenset()
+        signs: dict[str, int] = {}
         for _ in range(MAX_PASSES):
-            conv = FunctionConverter(self, fi.module, fi, hints, hidden, linear)
+            conv = FunctionConverter(self, fi.module, fi, hints, hidden, linear, signs)
             if fi.script:  # module-level program: comments of/inside defs belong to them
                 for s in fi.module.tree.body:
                     if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -702,6 +725,7 @@ class ProgramBuilder:
             if not conv.widened and conv.read_after <= hidden and conv.need_linear <= linear:
                 break
             hints, hidden, linear = conv.type_hints(), hidden | conv.read_after, linear | conv.need_linear
+            signs = conv.sign_hints()
         self.warnings.extend(conv.warnings)
         return fn
 

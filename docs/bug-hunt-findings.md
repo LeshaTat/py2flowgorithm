@@ -4,9 +4,9 @@ Source: a 10-finder / dedup / 3-lens-verification workflow run against the conve
 independent review's fixes landed. Its dedup step failed (output too large), so near-duplicates remain,
 and the verifiers of the last 64 findings were cut off, so those are unconfirmed leads.
 
-State of the code (second session, 2026-10-30): every confirmed finding below is fixed, converted
-where it used to be a clean error, or (for real type errors) a clean error, except the two documented
-`//` / `%` limitations (C1, C2). Each
+State of the code (2026-10-30): every confirmed finding below is fixed, converted where it used to
+be a clean error, or (for real type errors) a clean error. `//` and `%` keep Flowgorithm's
+truncation only for values of unknown sign, with a warning. Each
 item has a regression test in `tests/test_py2fprg.py` (`BugHuntRegressionTest`, and
 `ProjectLayoutTest` for the project-layout leads); 265 tests pass. The unverified leads at the end
 were triaged: the ones marked *fixed* there were reproduced first. The "Actual" blocks below show
@@ -76,7 +76,7 @@ Actual (at the time of the hunt):
 
 ### C1. `//` with a negative operand truncates toward zero (Int(a / b)) while Python floors
 
-- **status:** documented limitation: one warning per function when // or % has a non-literal operand (test: `BugHuntRegressionTest`)
+- **status:** converted: where an operand may be negative the result gets Python's correction before the statement (exact for every sign combination); non-negative operands and `% ... == 0` stay plain; only values of unknown sign (inputs, parameters) keep the truncation, with a warning (test: `BugHuntRegressionTest`)
 - severity: medium, votes: TTF, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.e_BinOp (ast.FloorDiv branch); FunctionConverter.infer (FloorDiv always INTEGER)`
 - expected: -4. Either emit a floor-correct expression for integer operands, e.g. `Int((n - (n % 2 + 2) % 2) / 2)` (uses Python-style modulo; checked for all four sign combinations), or at least warn like the existing math.floor warning ("// mapped to Int(a / b), which truncates toward zero for negative operands").
@@ -101,7 +101,7 @@ Actual (at the time of the hunt):
 
 ### C2. `%` with a negative dividend: emitted `%` follows the dividend's sign, Python's result is non-negative (realistic wrap-around index)
 
-- **status:** documented limitation: same warning as C1 (test: `BugHuntRegressionTest`)
+- **status:** converted: where an operand may be negative the result gets Python's correction before the statement (exact for every sign combination); non-negative operands and `% ... == 0` stay plain; only values of unknown sign (inputs, parameters) keep the truncation, with a warning (test: `BugHuntRegressionTest`)
 - severity: medium, votes: TTF, finder: precedence
 - location: `/Users/alekseitatuzov/personal/code/flowgorithm/py2fprg/convert.py FunctionConverter.e_BinOp (ast.Mod branch)`
 - expected: 4 for a positive divisor: emit `((i - 1) % n + n) % n` when the dividend is not provably non-negative (or when the operands are not both literals/positive), or emit a warning as for math.floor.
@@ -1222,9 +1222,9 @@ Each lead was reproduced before it was fixed; *fixed* items have tests in `BugHu
 - Returning a list variable from an un-annotated function reports "'xs' is already defined; arrays cannot be re-created" — **fixed: 'functions cannot return arrays'**
 - `# fg: ignore` on `def main()` crashes with AttributeError instead of a clean error — **fixed (C26)**
 - Non-UTF-8 source file (valid Python with a PEP 263 coding cookie) crashes with UnicodeDecodeError, even if it is an unrelated sibling file — **fixed**
-- RecursionError on a long left-nested `+` chain (about 340 operands or more; ~600 for string concatenation in print()) — **OPEN (needs an iterative expression walk; 340+ operands only)**
+- RecursionError on a long left-nested `+` chain (about 340 operands or more; ~600 for string concatenation in print()) — **fixed: the recursion limit is raised while converting (and linting); 3000 terms work**
 - Augmented assignment to an array element evaluates the index expression twice, so `tally[random.randint(1, 6)] += 1` draws two different random numbers (and `counts[roll()] += 1` prompts for input twice) — **converted: the index is evaluated once, into a variable**
-- Negative index given as an expression (`xs[-i]`, `xs[-(i + 1)]`) is emitted verbatim; only literal negatives are translated to `Size(xs) - k` — **OPEN / limitation: `xs[-i]` becomes `xs[Size(xs) - i]`, which differs from Python when i <= 0**
+- Negative index given as an expression (`xs[-i]`, `xs[-(i + 1)]`) is emitted verbatim; only literal negatives are translated to `Size(xs) - k` — **fixed: `xs[-i]` counts from the end only when -i is negative, as in Python**
 - `# fg: ignore` functions are still validated for parameters, defaults and annotations, contradicting README ('it may use any Python') — **fixed**
 - Project with two runnable modules: calling the other module's main() is rejected as 'main() cannot be called' because FuncInfo.is_main is stale from the previous build — **fixed: per-build state is reset**
 - `return None` in a void function is rejected ('None has no Flowgorithm equivalent' / 'unexpected return value') — **fixed (C23)**
@@ -1240,8 +1240,8 @@ Each lead was reproduced before it was fixed; *fixed* items have tests in `BugHu
 - Starred call argument `add(*xs)` is reported as an arity error ('expects 2 arguments, got 1') — **fixed: '*args in calls is not supported'**
 - return inside an elif branch is silently turned into an assignment; the code after the if-chain still runs (value and void functions) — **fixed (C18)**
 - return nested inside an if within another if is silently dropped as an early exit (code after the outer if runs, wrong value returned) — **fixed (C17)**
-- // with a negative operand that is not a literal gives truncated instead of floored results (temperature table with negative Celsius) — **documented limitation (C1): warning**
-- % with a negative dividend from a variable keeps the dividend's sign (Caesar decrypt wraps to '^', odd test fails) with no warning — **documented limitation (C2): warning**
+- // with a negative operand that is not a literal gives truncated instead of floored results (temperature table with negative Celsius) — **converted (C1)**
+- % with a negative dividend from a variable keeps the dividend's sign (Caesar decrypt wraps to '^', odd test fails) with no warning — **converted (C2)**
 - Chained comparison duplicates the middle operand, so a call with side effects (input prompt, print, Random) is executed twice — **converted (C0)**
 - Unannotated parameter is typed Integer from one literal call site; a Real argument at another call site is silently truncated — **fixed (C20)**
 - A Real argument passed to an int-annotated parameter is silently truncated (Python ignores the annotation and prints the Real) — **fixed: a clean error**

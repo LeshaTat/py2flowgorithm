@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import math
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
@@ -109,6 +110,11 @@ class VarInfo:
     declared: FgType = None  # the annotated type; None when the type is inferred (and may widen)
     node: Optional[ast.AST] = None  # first assignment, for error locations
     char_only: Optional[bool] = None  # every value assigned so far is one character (s[i])
+    sign: Optional[int] = None  # NONNEG / UNKNOWN / MAYBE_NEG over all values assigned so far
+
+
+# What is known about a number's sign (a join takes the max): >= 0, unknown, possibly negative.
+NONNEG, UNKNOWN, MAYBE_NEG = 0, 1, 2
 
 
 def assignable(target: FgType, value: FgType) -> bool:
@@ -205,6 +211,16 @@ def is_break_if(s: ast.stmt) -> bool:
             and not s.orelse)
 
 
+def literal_value_of(node: ast.AST):
+    """The value of a number literal (`2.5`, `-3`), else None."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        v = literal_value_of(node.operand)
+        return -v if v is not None else None
+    return None
+
+
 def is_list_display(node: ast.AST) -> bool:
     """`[...]`, a list comprehension or `[x] * n`."""
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
@@ -265,13 +281,16 @@ class FunctionConverter:
 
     def __init__(self, builder: "ProgramBuilder", module: "ModuleInfo", func: "FuncInfo",
                  hints: Optional[dict[str, FgType]] = None, hidden_loops: frozenset = frozenset(),
-                 linear: frozenset = frozenset()):
+                 linear: frozenset = frozenset(), signs: Optional[dict[str, int]] = None):
         self.b = builder
         self.m = module
         self.f = func
         self.filename = module.path
         self.hints = hints or {}
         self.hidden_loops = hidden_loops
+        self.signs = signs or {}  # final signs of a previous pass
+        self.sign_queries: list[tuple[str, int]] = []  # decisions made on a variable's sign
+        self.sign_free: set[int] = set()  # `%` nodes only compared with 0 (the sign does not matter)
         self.vars: dict[str, VarInfo] = {}
         self.ns = Namespace()
         self.ret_var: Optional[VarInfo] = None
@@ -296,6 +315,7 @@ class FunctionConverter:
         self.own_names: Optional[frozenset] = None
         self.break_flags: list[Optional[VarInfo]] = []  # per enclosing loop: the flag a break sets
         self.char_assumed: dict[str, ast.AST] = {}  # names `in` treated as one character
+        self.top_shapes: list = []  # set up once after the declarations (literals looped over)
         self.returned: Optional[VarInfo] = None  # set by a return inside a loop
         self.intdiv_warned = False
         self.widened = False
@@ -314,6 +334,9 @@ class FunctionConverter:
     def next_order(self) -> int:
         self.counter += 1
         return self.counter
+
+    def sign_hints(self) -> dict[str, int]:
+        return {k: v.sign for k, v in self.vars.items() if not k.startswith("<") and v.sign is not None}
 
     def type_hints(self) -> dict[str, FgType]:
         """Final types of the named variables, as hints for another pass."""
@@ -352,6 +375,8 @@ class FunctionConverter:
         for var, _ in self.loop_counters:
             if var.type != INTEGER:  # used as a Real elsewhere: the next pass counts with a copy
                 self.widened = True
+        if any((self.vars[name].sign or NONNEG) > seen for name, seen in self.sign_queries if name in self.vars):
+            self.widened = True  # a // or % trusted a sign that a later assignment broke
         for name, node in self.char_assumed.items():
             if not self.vars[name].char_only:
                 raise self.err(f"'{name}' is tested with `in` as one character, but is also assigned longer "
@@ -454,7 +479,7 @@ class FunctionConverter:
                 out.append(Assign(info.fg, info.const_text))
         if self.returned is not None:
             out.append(Assign(self.returned.fg, "false"))
-        return out
+        return out + self.top_shapes
 
     # --------------------------------------------------------------- comments
     def take_comments(self, start: int, end: int) -> tuple[list, bool]:
@@ -589,6 +614,7 @@ class FunctionConverter:
         if t is None or isinstance(t, ArrayT):
             raise self.err(f"cannot infer the type of {what}", node, "assign it to a variable first")
         tmp = self.fresh_var(base, t)
+        tmp.sign = self.sign(node)
         self.hoist([Assign(tmp.fg, self.text(node))], node, what, mark)
         return ast.copy_location(ast.Name(id=tmp.py, ctx=ast.Load()), node)
 
@@ -781,6 +807,8 @@ class FunctionConverter:
             fi = self.b.resolve_callee(self.m, fn)
             if fi is not None:
                 return [Call(self.user_call(v, fi))]
+            if isinstance(fn, ast.Attribute) and isinstance(self.infer(fn.value), ArrayT):
+                return self.list_method(fn.value, fn.attr, v)
             if isinstance(fn, ast.Attribute):
                 raise self.err(f"unsupported method call '.{fn.attr}()'", s,
                                "Flowgorithm has no methods; arrays have a fixed size and strings only "
@@ -979,14 +1007,20 @@ class FunctionConverter:
         return self.reads
 
     def literal_sequence(self, seq: ast.expr, s: ast.For) -> ast.expr:
-        """`for ch in "abc"` / `for x in [1, 2, 3]`: the literal goes into a variable before the loop."""
+        """`for ch in "abc"` / `for x in [1, 2, 3]`: the literal goes into a variable, set up once at
+        the top of the function (it never changes)."""
         if isinstance(seq, ast.Constant) and isinstance(seq.value, str):
             text = self.fresh_var("text", STRING)
-            self.pre.append(Assign(text.fg, self.text(seq)))
+            self.top_shapes.append(Assign(text.fg, self.text(seq)))
             return ast.copy_location(ast.Name(id=text.py, ctx=ast.Load()), seq)
         if isinstance(seq, (ast.List, ast.Tuple)):
             key = f"<values{self.next_order()}>"
-            self.pre.extend(self.declare_array(key, ("literal", seq.elts, None, True), s, None, base="values"))
+            depth, self.loop_depth = self.loop_depth, 0
+            try:
+                self.top_shapes.extend(self.declare_array(key, ("literal", seq.elts, None, True), s, None,
+                                                          base="values"))
+            finally:
+                self.loop_depth = depth
             return ast.copy_location(ast.Name(id=key, ctx=ast.Load()), seq)
         raise self.err("cannot iterate over this value", s)
 
@@ -1043,16 +1077,24 @@ class FunctionConverter:
         out: list = []
         prologue: list = []
         direct = False
+        if is_range:  # what the counter's values are known to be
+            r_start = it.args[0] if len(it.args) > 1 else ast.Constant(value=0)
+            r_stop = it.args[0] if len(it.args) == 1 else it.args[1]
+            stop_v = self.literal_int(r_stop)
+            counter_sign = self.sign(r_start) if direction == "inc" else \
+                NONNEG if stop_v is not None and stop_v >= -1 else max(self.sign(r_start), self.sign(r_stop))
+        else:
+            counter_sign = NONNEG  # an index
         if counter_name is None:  # for x in xs: count with an index of its own
             counter = self.fresh_var(legalize(elem_name) + "Index", INTEGER)
         elif not early and self.counter_is_direct(counter_name, s):
-            counter = self.var_assign(counter_name, INTEGER, s)
+            counter = self.var_assign(counter_name, INTEGER, s, sign=counter_sign)
             self.loop_counters.append((counter, s))
             direct = True
         elif counter_name in self.read_names():
             # count with a hidden variable; the Python name gets its value at the top of every pass
             counter = self.fresh_var(legalize(counter_name) + "Counter", INTEGER)
-            prologue.append(Assign(self.var_assign(counter_name, INTEGER, s).fg, counter.fg))
+            prologue.append(Assign(self.var_assign(counter_name, INTEGER, s, sign=counter_sign).fg, counter.fg))
         else:  # never read (`for _ in range(3)`): a counter of its own will do
             counter = self.fresh_var(legalize(counter_name) + "Counter", INTEGER)
         if elem_name is not None and elem_name in self.read_names():
@@ -1198,6 +1240,8 @@ class FunctionConverter:
             return f"{self.sub(test.left, P_REL)} {op} {self.sub(test.comparators[0], P_REL, 'right')}", P_REL
         t = self.infer(test)
         if is_numeric(t):
+            if isinstance(test, ast.BinOp) and isinstance(test.op, ast.Mod):
+                self.sign_free.add(id(test))
             return f"{self.sub(test, P_REL)} == 0", P_REL
         if t == STRING:
             return f'{self.sub(test, P_REL)} == ""', P_REL
@@ -1242,6 +1286,8 @@ class FunctionConverter:
         if t == BOOLEAN or t is None:
             return self.expr(node)
         if is_numeric(t):
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+                self.sign_free.add(id(node))  # `if n % 2:`
             return f"{self.sub(node, P_REL)} != 0", P_REL
         if t == STRING:
             return f'{self.sub(node, P_REL)} != ""', P_REL
@@ -1267,6 +1313,9 @@ class FunctionConverter:
                 cond = self.truthy(value.test)
                 return [If(cond, self.branch(lambda: self.assign_to(target, value.body, node, ann)),
                            self.branch(lambda: self.assign_to(target, value.orelse, node, ann)))]
+            copy_of = self.match_list_copy(value)
+            if copy_of is not None:
+                return self.copy_array(target.id, copy_of, value, node, ann)
             arr = self.match_list_create(value, node)
             if arr is not None:
                 return self.declare_array(target.id, arr, node, ann)
@@ -1279,7 +1328,8 @@ class FunctionConverter:
                     raise self.err(f"'{target.id}' is annotated {py_type(ann)} but assigned {py_type(t)}",
                                    node, self.annotation_hint(ann, t))
                 t = ann
-            var = self.var_assign(target.id, t, node, declared=ann, char=self.is_char(value))
+            var = self.var_assign(target.id, t, node, declared=ann, char=self.is_char(value),
+                                  sign=self.sign(value))
             return [Assign(var.fg, text)]
         if isinstance(target, ast.Subscript):
             tgt_text, info = self.index_target(target)
@@ -1475,7 +1525,13 @@ class FunctionConverter:
         if k is not None and k < 0:
             return f"{size} - {-k}"
         if isinstance(idx, ast.UnaryOp) and isinstance(idx.op, ast.USub) and k is None:
-            return f"{size} - {self.sub(idx.operand, P_ADD, 'right')}"
+            if self.infer(idx.operand) not in (INTEGER, None):
+                raise self.err("array index must be an integer", idx)
+            mark = self.effects  # `xs[-i]` counts from the end when -i < 0 (Python), else from the start
+            pos = self.fresh_var("pos", INTEGER)
+            self.hoist([Assign(pos.fg, f"-{self.sub(idx.operand, P_UNARY)}"),
+                        If(f"{pos.fg} < 0", [Assign(pos.fg, f"{pos.fg} + {size}")], [])], idx, "the index", mark)
+            return pos.fg
         t = self.infer(idx)
         if t is not None and t != INTEGER:
             raise self.err("array index must be an integer", idx)
@@ -1597,7 +1653,8 @@ class FunctionConverter:
             return None
         return self.b.resolve_constant(self.m, node)
 
-    def var_assign(self, py: str, t: FgType, node: ast.AST, declared: FgType = None, char: bool = False) -> VarInfo:
+    def var_assign(self, py: str, t: FgType, node: ast.AST, declared: FgType = None, char: bool = False,
+                   sign: int = UNKNOWN) -> VarInfo:
         info = self.var_info(py)
         if info is None:
             want = legalize(py)
@@ -1620,6 +1677,7 @@ class FunctionConverter:
             raise self.err(f"cannot reassign array '{py}'", node)
         self.stale.pop(py, None)
         info.char_only = char and info.char_only is not False
+        info.sign = max(sign, info.sign if info.sign is not None else self.signs.get(py, NONNEG))
         if info.declared is not None:
             if declared is not None and declared != info.declared:
                 raise self.err(f"'{py}' is annotated twice, as {py_type(info.declared)} and {py_type(declared)}", node)
@@ -1762,11 +1820,8 @@ class FunctionConverter:
                                "makes first", n.right, "assign the earlier call's result to a variable first")
             right = self.bool_as_number(n.right) if rt == BOOLEAN else n.right
             return self.expr(ast.copy_location(ast.BinOp(left=left, op=n.op, right=right), n))
-        if op in (ast.FloorDiv, ast.Mod) and not self.intdiv_warned and lt != STRING:
-            if self.int_literal(n.left) is None or self.int_literal(n.right) is None:
-                self.intdiv_warned = True
-                self.warn("// and % follow Flowgorithm's truncation semantics: results differ from Python "
-                          "when an operand is negative", n)
+        if op in (ast.FloorDiv, ast.Mod) and lt != STRING:
+            return self.floor_op(n)
         if op is ast.Add:
             if lt == STRING or rt == STRING:
                 left = self.sub(self.strip_str_call(n.left), P_CAT)
@@ -1783,22 +1838,129 @@ class FunctionConverter:
             sym, p = "*", P_MUL
         elif op is ast.Div:
             sym, p = "/", P_MUL
-        elif op is ast.Mod:
-            if lt == STRING:
-                raise self.err("% string formatting is not supported; use an f-string", n)
-            if self.negative_literal(n.left) or self.negative_literal(n.right):
-                self.warn("% with a negative operand: Flowgorithm keeps the sign of the dividend, Python "
-                          "the sign of the divisor", n)
-            sym, p = "%", P_MUL
+        elif op is ast.Mod:  # numbers go through floor_op() above
+            raise self.err("% string formatting is not supported; use an f-string", n)
         elif op is ast.Pow:
             sym, p = "^", P_POW
-        elif op is ast.FloorDiv:
-            if self.negative_literal(n.left) or self.negative_literal(n.right):
-                self.warn("// with a negative operand: Int() truncates toward zero, Python rounds down", n)
-            return f"Int({self.sub(n.left, P_MUL)} / {self.sub(n.right, P_MUL, 'right')})", P_ATOM
         else:
             raise self.err(f"operator {op.__name__} is not supported", n)
         return f"{self.sub(n.left, p)} {sym} {self.sub(n.right, p, 'right')}", p
+
+    def rounding(self, kind: str, x: ast.expr, n: ast.Call) -> tuple[str, int]:
+        """math.floor, math.ceil and round(x) as Python computes them (Flowgorithm's Int truncates
+        toward zero): Int, then one correction; round goes half to even, like Python."""
+        if self.infer(x) == INTEGER:
+            return self.expr(x)
+        v = literal_value_of(x)
+        if isinstance(v, float):  # a literal: Python's own result
+            r = {"floor": math.floor, "ceil": math.ceil, "round": round}[kind](v)
+            return str(r), (P_UNARY if r < 0 else P_ATOM)
+        sx = self.sign(x)
+        if kind == "floor" and sx == NONNEG:
+            return f"Int({self.text(x)})", P_ATOM
+        mark = self.effects
+        xt = self.simple_text(x, "value")
+        r = self.fresh_var({"floor": "floored", "ceil": "ceiled", "round": "rounded"}[kind], INTEGER)
+        shapes: list = [Assign(r.fg, f"Int({xt})")]
+        if kind == "floor":
+            shapes.append(If(f"{r.fg} > {xt}", [Assign(r.fg, f"{r.fg} - 1")], []))
+        elif kind == "ceil":
+            shapes.append(If(f"{r.fg} < {xt}", [Assign(r.fg, f"{r.fg} + 1")], []))
+        else:
+            d = f"{xt} - {r.fg}"
+            shapes.append(If(f"{d} > 0.5 or {d} == 0.5 and {r.fg} % 2 != 0", [Assign(r.fg, f"{r.fg} + 1")], []))
+            if sx != NONNEG:
+                shapes.append(If(f"{d} < -0.5 or {d} == -0.5 and {r.fg} % 2 != 0", [Assign(r.fg, f"{r.fg} - 1")], []))
+        self.hoist(shapes, n, f"{kind}()", mark)
+        return r.fg, P_ATOM
+
+    def floor_op(self, n: ast.BinOp) -> tuple[str, int]:
+        """`a // b` and `a % b`. Flowgorithm truncates toward zero (`Int(a / b)`, and `%` keeps the
+        dividend's sign); Python rounds down (the remainder has the divisor's sign). They agree for
+        non-negative operands; where a negative value is possible the result is corrected before the
+        statement; where nothing is known about the signs (inputs, parameters) the plain form stays,
+        with a warning."""
+        a, b = n.left, n.right
+        is_mod = isinstance(n.op, ast.Mod)
+        av, bv = self.literal_int(a), self.literal_int(b)
+        if av is not None and bv is not None and bv != 0:  # both literals: Python's value
+            v = av % bv if is_mod else av // bv
+            return str(v), (P_UNARY if v < 0 else P_ATOM)
+        plain = (f"{self.sub(a, P_MUL)} % {self.sub(b, P_MUL, 'right')}", P_MUL) if is_mod else \
+            (f"Int({self.sub(a, P_MUL)} / {self.sub(b, P_MUL, 'right')})", P_ATOM)
+        signs = self.sign(a), self.sign(b)
+        if is_mod and id(n) in self.sign_free or signs == (NONNEG, NONNEG):
+            return plain
+        if MAYBE_NEG not in signs:
+            if not self.intdiv_warned:
+                self.intdiv_warned = True
+                self.warn("// and % of values whose sign is unknown follow Flowgorithm: it truncates toward "
+                          "zero, Python rounds down for negative values", n)
+            return plain
+        mark = self.effects
+        at = self.simple_text(a, "dividend") if not is_mod else None
+        bt = self.simple_text(b, "divisor")
+        res = self.fresh_var("remainder" if is_mod else "quotient", INTEGER if not is_mod else self.infer(n) or INTEGER)
+        if is_mod:
+            shapes = [Assign(res.fg, f"{self.sub(a, P_MUL)} % {bt}")]
+            if bv is not None:  # the result must take the divisor's sign
+                fix = f"{res.fg} < 0" if bv > 0 else f"{res.fg} > 0"
+            else:
+                fix = f"{res.fg} != 0 and ({res.fg} < 0) != ({bt} < 0)"
+            shapes.append(If(fix, [Assign(res.fg, f"{res.fg} + {bt}")], []))
+        else:
+            shapes = [Assign(res.fg, f"Int({at} / {bt})")]
+            if bv is not None and bv > 0:  # truncation went up exactly when it did not divide evenly
+                fix = f"{res.fg} * {bt} > {at}"
+            else:
+                fix = f"{res.fg} * {bt} != {at} and ({at} < 0) != ({bt} < 0)"
+            shapes.append(If(fix, [Assign(res.fg, f"{res.fg} - 1")], []))
+        self.hoist(shapes, n, "// or %", mark)
+        return res.fg, P_ATOM
+
+    def sign(self, n: ast.expr) -> int:
+        """What is known about the sign of a number (for // and %): NONNEG, UNKNOWN or MAYBE_NEG."""
+        if isinstance(n, ast.Constant):
+            if isinstance(n.value, bool) or not isinstance(n.value, (int, float)):
+                return UNKNOWN
+            return NONNEG if n.value >= 0 else MAYBE_NEG
+        if isinstance(n, ast.UnaryOp):
+            if isinstance(n.op, ast.USub):
+                return NONNEG if self.literal_int(n.operand) == 0 else MAYBE_NEG
+            return self.sign(n.operand) if isinstance(n.op, ast.UAdd) else UNKNOWN
+        if isinstance(n, ast.BinOp):
+            if isinstance(n.op, ast.Sub):
+                return MAYBE_NEG
+            left, right = self.sign(n.left), self.sign(n.right)
+            if isinstance(n.op, ast.Mod):  # Python's remainder has the divisor's sign
+                return right
+            if isinstance(n.op, ast.Pow):
+                return left
+            return max(left, right)
+        if isinstance(n, ast.Name):
+            info = self.var_info(n.id)
+            if info is not None:
+                seen = info.sign if info.sign is not None else self.signs.get(n.id, UNKNOWN)
+                self.sign_queries.append((n.id, seen))
+                return seen
+            const = self.module_constant(n)
+            if const is not None and isinstance(const[0], ast.AST):
+                return self.sign(const[0])
+            return UNKNOWN
+        if isinstance(n, ast.IfExp):
+            return max(self.sign(n.body), self.sign(n.orelse))
+        if isinstance(n, ast.Call):
+            fn = n.func
+            name = fn.id if isinstance(fn, ast.Name) else fn.attr if isinstance(fn, ast.Attribute) else ""
+            if self.b.resolve_callee(self.m, fn) is not None:
+                return UNKNOWN
+            if name in ("len", "abs", "ord", "sqrt", "fabs", "randrange") and not (name == "randrange" and len(n.args) == 2):
+                return NONNEG
+            if name in ("randint", "randrange") and n.args:
+                return self.sign(n.args[0])
+            if name in ("int", "float", "round", "floor", "ceil", "trunc") and n.args and self.match_input(n) is None:
+                return self.sign(n.args[0])
+        return UNKNOWN
 
     def negative_literal(self, node: ast.expr) -> bool:
         v = self.int_literal(node)
@@ -1815,6 +1977,10 @@ class FunctionConverter:
     def e_Compare(self, n: ast.Compare) -> tuple[str, int]:
         if len(n.ops) == 1 and isinstance(n.ops[0], (ast.In, ast.NotIn)):
             return self.membership(n)
+        if len(n.ops) == 1 and isinstance(n.ops[0], (ast.Eq, ast.NotEq)):  # `n % 2 == 0`: any sign will do
+            for x, other in ((n.left, n.comparators[0]), (n.comparators[0], n.left)):
+                if isinstance(x, ast.BinOp) and isinstance(x.op, ast.Mod) and self.literal_int(other) == 0:
+                    self.sign_free.add(id(x))
         for op in n.ops:
             if type(op) not in COMPARE_OP:
                 what = "`in` inside a chained comparison" if isinstance(op, (ast.In, ast.NotIn)) else \
@@ -1997,6 +2163,8 @@ class FunctionConverter:
         if (isinstance(fn, ast.Attribute) and self.infer(fn.value) == STRING
                 and not (isinstance(fn.value, ast.Name) and self.b.module_alias_target(self.m, fn.value.id))):
             return self.string_method(fn.value, fn.attr, args, n)
+        if isinstance(fn, ast.Attribute) and isinstance(self.infer(fn.value), ArrayT) and fn.attr in ("index", "count"):
+            return self.list_search(fn.value, fn.attr, args, n)
         if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
             target = self.b.module_alias_target(self.m, fn.value.id)
             if target in ("math", "random"):
@@ -2048,16 +2216,14 @@ class FunctionConverter:
 
     def library_call(self, module: str, name: str, args: list, n: ast.Call) -> tuple[str, int]:
         if module == "math":
+            if name in ("floor", "ceil") and len(args) == 1:
+                return self.rounding(name, args[0], n)
             if name in MATH_FUNCS and len(args) == 1:
-                if name == "floor":
-                    self.warn("math.floor mapped to Int(), which truncates toward zero", n)
                 return MATH_FUNCS[name][0].format(self.text(args[0])), P_ATOM
             if name == "pow" and len(args) == 2:
                 return f"{self.sub(args[0], P_POW)} ^ {self.sub(args[1], P_POW)}", P_POW
             if name == "exp" and len(args) == 1:
                 return f"2.718281828459045 ^ {self.sub(args[0], P_POW)}", P_POW
-            if name == "ceil":
-                raise self.err("math.ceil has no Flowgorithm equivalent", n, "use Int(x) + 1 after a check")
             raise self.err(f"math.{name} is not supported", n)
         if module == "random":  # Random() draws the next number: a side effect
             return self.effect_value(self.random_call(name, args, n), REAL if name == "random" else INTEGER,
@@ -2118,7 +2284,7 @@ class FunctionConverter:
         """The text of a value that is used several times: a variable as it is, anything else in a
         fresh variable first."""
         text = self.text(node)
-        if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", text):
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*|\d+(\.\d+)?", text):  # a variable or a literal
             return text
         tmp = self.fresh_var(base, self.infer(node))
         self.pre.append(Assign(tmp.fg, text))
@@ -2247,6 +2413,104 @@ class FunctionConverter:
                   For(k.fg, "1", self.text(count_node), "inc", "1", [Assign(result.fg, f"{result.fg} & {piece}")])]
         self.hoist(shapes, count_node, "string repetition", mark)
         return result.fg, P_ATOM
+
+    def sort_shapes(self, arr: str, elem: FgType, descending: bool, node: ast.AST) -> list:
+        """A bubble sort of an array in place (swapping only out-of-order neighbours keeps it stable,
+        like Python's sort)."""
+        if elem == BOOLEAN:
+            raise self.err("sorting Booleans is not supported", node)
+        p, j = self.fresh_var("sortPass", INTEGER), self.fresh_var("j", INTEGER)
+        tmp = self.fresh_var("swap", elem)
+        op = "<" if descending else ">"
+        swap = [Assign(tmp.fg, f"{arr}[{j.fg}]"), Assign(f"{arr}[{j.fg}]", f"{arr}[{j.fg} + 1]"),
+                Assign(f"{arr}[{j.fg} + 1]", tmp.fg)]
+        return [For(p.fg, "0", f"Size({arr}) - 2", "inc", "1", [
+            For(j.fg, "0", f"Size({arr}) - 2 - {p.fg}", "inc", "1", [
+                If(f"{arr}[{j.fg}] {op} {arr}[{j.fg} + 1]", swap, [])])])]
+
+    def sort_order(self, call: ast.Call) -> bool:
+        """reverse=True / reverse=False (literal) of sort() and sorted(); no key= functions."""
+        descending = False
+        for kw in call.keywords:
+            if kw.arg != "reverse" or not (isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, bool)):
+                raise self.err("only `reverse=True` / `reverse=False` is supported in a sort", call)
+            descending = kw.value.value
+        return descending
+
+    def list_method(self, recv: ast.expr, name: str, call: ast.Call) -> list:
+        """`xs.sort()` and `xs.reverse()` as statements (a list's size cannot change in Flowgorithm)."""
+        if not isinstance(recv, ast.Name):
+            raise self.err("only list variables can be sorted or reversed", call)
+        info = self.lookup(recv)
+        if name == "sort" and not call.args:
+            return self.sort_shapes(info.fg, info.type.elem, self.sort_order(call), call)
+        if name == "reverse" and not call.args and not call.keywords:
+            k, tmp = self.fresh_var("k", INTEGER), self.fresh_var("swap", info.type.elem)
+            a, other = info.fg, f"{info.fg}[Size({info.fg}) - 1 - {k.fg}]"
+            return [For(k.fg, "0", f"Int(Size({a}) / 2) - 1", "inc", "1", [
+                Assign(tmp.fg, f"{a}[{k.fg}]"), Assign(f"{a}[{k.fg}]", other), Assign(other, tmp.fg)])]
+        raise self.err(f"list method '.{name}()' is not supported", call,
+                       "Flowgorithm arrays have a fixed size: no append, insert, pop or remove; "
+                       "sort(), reverse(), index() and count() work")
+
+    def list_search(self, recv: ast.expr, name: str, args: list, n: ast.Call) -> tuple[str, int]:
+        """`xs.index(x)` (the first position; -1 where Python raises ValueError) and `xs.count(x)`."""
+        if not isinstance(recv, ast.Name) or len(args) != 1 or n.keywords:
+            raise self.err(f"'.{name}(value)' needs a list variable and one value", n)
+        mark = self.effects
+        info = self.lookup(recv)
+        x = args[0]
+        lt = self.infer(x)
+        if lt is not None and not self.compatible(lt, info.type.elem):
+            raise self.err(f"comparing {type_name(lt)} with {type_name(info.type.elem)}", n)
+        if has_call(x):
+            x = self.hoist_value(x, "value", f"the value given to .{name}()")
+        xt = self.sub(x, P_REL, "right")
+        k = self.fresh_var("k", INTEGER)
+        if name == "index":
+            result = self.fresh_var("position", INTEGER)
+            shapes = [Assign(result.fg, "-1"),  # backwards, so that the first match is the one left
+                      For(k.fg, f"Size({info.fg}) - 1", "0", "dec", "1",
+                          [If(f"{info.fg}[{k.fg}] == {xt}", [Assign(result.fg, k.fg)], [])])]
+        else:
+            result = self.fresh_var("count", INTEGER)
+            shapes = [Assign(result.fg, "0"), For(k.fg, "0", f"Size({info.fg}) - 1", "inc", "1",
+                                                  [If(f"{info.fg}[{k.fg}] == {xt}", [Assign(result.fg, f"{result.fg} + 1")], [])])]
+        self.hoist(shapes, n, f".{name}()", mark)
+        return result.fg, P_ATOM
+
+    def match_list_copy(self, value: ast.expr) -> Optional[ast.Name]:
+        """The list a `sorted(xs)` / `list(xs)` / `xs.copy()` / `xs[:]` copies."""
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id in ("sorted", "list") \
+                and len(value.args) == 1 and self.b.resolve_callee(self.m, value.func) is None:
+            src = value.args[0]
+        elif (isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute) and value.func.attr == "copy"
+              and not value.args):
+            src = value.func.value
+        elif (isinstance(value, ast.Subscript) and isinstance(value.slice, ast.Slice)
+              and value.slice.lower is None and value.slice.upper is None and value.slice.step is None):
+            src = value.value
+        else:
+            return None
+        return src if isinstance(src, ast.Name) and isinstance(self.infer(src), ArrayT) else None
+
+    def copy_array(self, py_name: str, src: ast.Name, value: ast.expr, node: ast.stmt, ann: FgType) -> list:
+        """A new array with the same elements (sorted for sorted())."""
+        info = self.lookup(src)
+        if isinstance(ann, ArrayT) and not assignable(ann.elem, info.type.elem):
+            raise self.err(f"'{py_name}' is annotated {py_type(ann)} but gets a {py_type(info.type)}", node)
+        if py_name in self.vars:
+            raise self.err(f"'{py_name}' is already defined; arrays cannot be re-created", node)
+        fg = self.ns.reserve(legalize(py_name))
+        elem = ann.elem if isinstance(ann, ArrayT) else info.type.elem
+        self.vars[py_name] = VarInfo(py_name, fg, ArrayT(elem), is_array=True, order=self.next_order(),
+                                     declared=ann, node=node)
+        k = self.fresh_var("k", INTEGER)
+        out: list = [Declare([fg], elem, True, f"Size({info.fg})"),
+                     For(k.fg, "0", f"Size({info.fg}) - 1", "inc", "1", [Assign(f"{fg}[{k.fg}]", f"{info.fg}[{k.fg}]")])]
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "sorted":
+            out += self.sort_shapes(fg, elem, self.sort_order(value), value)
+        return out
 
     def membership(self, n: ast.Compare) -> tuple[str, int]:
         """`x in (1, 2, 3)`, `x in xs`, `x in range(a, b)`, `ch in "aeiou"` (and `not in`)."""
@@ -2384,8 +2648,7 @@ class FunctionConverter:
         if name == "round":
             if len(args) == 2:
                 return f"ToReal(ToFixed({self.text(args[0])}, {self.text(args[1])}))", P_ATOM
-            self.warn("round(x) mapped to Int(x + 0.5), which is wrong for negative numbers", n)
-            return f"Int({self.sub(one(), P_ADD)} + 0.5)", P_ATOM
+            return self.rounding("round", one(), n)
         if name == "pow" and len(args) == 2:
             return f"{self.sub(args[0], P_POW)} ^ {self.sub(args[1], P_POW)}", P_POW
         if name == "ord":
@@ -2533,6 +2796,8 @@ class FunctionConverter:
                 return self.infer_library(target, fn.attr)
         if isinstance(fn, ast.Attribute) and self.infer(fn.value) == STRING:
             return STRING_METHODS.get(fn.attr)
+        if isinstance(fn, ast.Attribute) and isinstance(self.infer(fn.value), ArrayT):
+            return INTEGER if fn.attr in ("index", "count") else self.infer(fn.value) if fn.attr == "copy" else None
         return None
 
     @staticmethod

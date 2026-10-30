@@ -67,15 +67,18 @@ python3 -m unittest discover -s tests -v
 | `for i in range(a, b, step)` | `For` from `a` to `b - 1` (inclusive end, `dec` for negative literal steps); when the body changes `i`, `i` is read after the loop or `i` is also a float, the `For` counts with a hidden `iCounter` and sets `i = iCounter` at the top of each pass |
 | `for x in xs`, `for ch in s`, `for i, x in enumerate(xs)` | `For` over an index variable plus `x = xs[i]` / `Char(s, i)` |
 | `xs = [0] * n`, `xs: list[str] = [""] * n`, `xs = [3, 4]`, `xs[i]`, `len(xs)` | array `Declare` with a size (in place, since the size is a runtime value), element assignment, `Size(xs)` |
-| `for ch in "abc"`, `for x in [1, 2, 3]` | the literal goes into a variable (`text`, `values`) first |
+| `for ch in "abc"`, `for x in [1, 2, 3]` | the literal goes into a variable (`text`, `values`), set up once at the top |
+| `xs.sort()` (also `reverse=True`), `xs.reverse()`, `xs.index(x)`, `xs.count(x)`, `ys = sorted(xs)` / `list(xs)` / `xs.copy()` / `xs[:]` | loops over the fixed-size array (a stable bubble sort; `index` gives -1 where Python raises) |
+| `xs[-1]`, `xs[-i]` | `Size(xs) - 1`; a computed one counts from the end only when it is negative, as in Python |
 | `f(x)` as a statement | `Call` |
 | `# comments`, docstrings | `Comment` shapes (not the shebang, the coding line or tool pragmas such as `# noqa`); the module docstring becomes the program's *about* text and title |
 | module-level `MAX_TRIES = 3` | copied as a declared+assigned local into every function that uses it (Flowgorithm has no globals) |
-| `math.sqrt/sin/cos/tan/asin/acos/atan/log/log10/fabs/floor/pow/exp`, `math.pi` | `Sqrt`, `Sin`, …, `Ln`, `Log10`, `Abs`, `Int`, `^`, `pi` |
+| `math.sqrt/sin/cos/tan/asin/acos/atan/log/log10/fabs/pow/exp`, `math.pi` | `Sqrt`, `Sin`, …, `Ln`, `Log10`, `Abs`, `^`, `pi` |
+| `math.floor(x)`, `math.ceil(x)`, `round(x)` | `Int(x)` (which truncates) plus one correction before the statement; `round` goes half to even, as in Python |
 | `random.randint(a, b)`, `random.randrange(n)` | `a + Random(b - a + 1)`, `Random(n)` |
 | `abs`, `round(x, n)`, `str`, `int(s)`, `float(s)`, `ord`, `chr`, `len(s)`, `s[i]` | `Abs`, `ToReal(ToFixed(x, n))`, `ToString`, `ToInteger`, `ToReal`, `ToCode`, `ToChar`, `Len`, `Char(s, i)` |
 | `"*" * n`, `s.upper()`, `s.lower()`, `s.strip()` / `lstrip` / `rstrip`, `s.isdigit()`, `s.isalpha()`, `s.isupper()`, `s.islower()`, `s.count("a")`, `s[a:b]`, `s[::-1]` | a small loop over `Char` / `ToCode` / `ToChar` into a variable before the statement (letters and digits as in ASCII; slice bounds clamped as in Python) |
-| `**`, `//`, `%`, `and/or/not`, comparisons, `a < b < c`, string `+` | `^`, `Int(a / b)`, `%`, `and/or/not`, `==` …, `a < b and b < c`, `&` (`//` and `%` differ from Python for negative operands: Flowgorithm truncates toward zero; the converter warns when an operand may be negative) |
+| `**`, `//`, `%`, `and/or/not`, comparisons, `a < b < c`, string `+` | `^`, `Int(a / b)`, `%`, `and/or/not`, `==` …, `a < b and b < c`, `&`. Flowgorithm's `//` and `%` truncate toward zero, so where an operand may be negative (a subtraction, a negative literal, a variable that held one) the result gets Python's rounding-down correction before the statement; non-negative operands and `% ... == 0` tests stay plain |
 | `if n:`, `while s:`, `if not xs:` (Python truthiness) | explicit tests: `n != 0`, `s != ""`, `Size(xs) == 0` |
 | `count += x > 0`, `score + (a == b)`, `int(flag)` (a Boolean as 1/0) | `If x > 0: count = count + 1`; otherwise an `If` that sets a variable to 1 or 0 |
 | `a if c else b` | an `If` that assigns the value (directly to the target in `x = a if c else b` and `return a if c else b`) |
@@ -118,11 +121,12 @@ Everything else is a comment directive:
 
 ### What is not supported (reported as an error with file and line)
 
-Flowgorithm has no exceptions, classes, dictionaries, tuples, list slices, substring search
-(`in` on strings beyond one character, `find`, `replace`, `split`, `join`, `startswith`), nested
-lists, generators, lambdas, global variables, and no string escape sequences (quotes and tabs inside
-strings are emitted through `ToChar(n)`). String methods other than the ones in the table above are
-reported as errors. Keep the interactive program inside that subset and put
+Flowgorithm has no exceptions, classes, dictionaries, tuples, growing lists (`append`, `insert`,
+`pop`, `remove`), list slices other than `xs[:]`, substring search (`in` on strings beyond one
+character, `find`, `replace`, `split`, `join`, `startswith`), nested lists, generators, lambdas,
+global variables, and no string escape sequences (quotes and tabs inside strings are emitted
+through `ToChar(n)`). String and list methods other than the ones in the table above are reported
+as errors. Keep the interactive program inside that subset and put
 everything else in `# fg: ignore` functions or in the tests.
 
 ### Where Python and Flowgorithm differ anyway
@@ -131,7 +135,8 @@ everything else in `# fg: ignore` functions or in the tests.
   and Booleans as `true`/`false`.
 * `input().strip()` is read with a plain `Input` (the usual defensive `.strip()` would otherwise
   turn every prompt into a loop); Flowgorithm keeps spaces the user types around the answer.
-* `//` and `%` truncate toward zero in Flowgorithm (Python rounds down); the converter warns.
+* `//` and `%` of values whose sign the converter cannot know (an input, a parameter) stay plain,
+  so they truncate toward zero where Python rounds down; the converter warns.
 * A literal written as `mantissa * 10 ^ exponent` may differ from Python's value in the last digit.
 * When part of a statement has to run before it (an `input()` inside an expression, say), the calls
   that Python makes earlier in that statement go into variables as well, so the flowchart keeps
@@ -201,8 +206,7 @@ gathered from the three modules; the tests and the ignored helper are not in it.
 `docs/bug-hunt-findings.md` lists the results of an adversarial multi-agent bug hunt: confirmed
 semantic defects with repros and their status, rejected reports, and the triaged leads. All
 confirmed findings are fixed or give a clean error, each with a regression test, except the
-documented `//`/`%` truncation. Still open: a RecursionError for expressions with hundreds of
-`+` operands, and computed negative indexes (`xs[-i]`), which differ from Python when `i <= 0`.
+`//`/`%` of values with unknown signs, which keep Flowgorithm's truncation (with a warning).
 
 ## Notes on the file format
 

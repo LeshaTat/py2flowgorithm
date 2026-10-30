@@ -980,10 +980,88 @@ class BugHuntRegressionTest(unittest.TestCase):
         body = body_xml("def main():\n    x = 3\n    if 1 <= x <= 5:\n        print(x)\n")
         self.assertIn('<if expression="1 &lt;= x and x &lt;= 5">', body)
 
-    def test_floor_division_and_modulo_warn_for_variables(self):  # C1, C2
-        msgs = warnings_of("def main():\n    n = -7\n    print(n // 2, n % 2)\n")
-        self.assertEqual(sum("truncation semantics" in m for m in msgs), 1, msgs)
-        self.assertFalse(any("truncation" in m for m in warnings_of("def main():\n    print(7 // 2)\n")))
+    def test_floor_division_and_modulo_follow_python(self):  # C1, C2
+        xml = same_as_python(self, '''
+            def shift(ch: str, k: int) -> str:
+                code = ord(ch) - ord("a")
+                return chr((code - k) % 26 + ord("a"))
+
+            def main():
+                n = -7
+                print(n // 2, -n // 2, n % 2, 7 // -2, -7 % 3)
+                i = 0
+                print((i - 1) % 5)
+                out = ""
+                for ch in "cde":
+                    out = out + shift(ch, 3)
+                print(out)
+                for a in [7, -7, 6, -6, 0]:
+                    for b in [2, -2, 3, -3]:
+                        d = a - 0
+                        print(a, b, d // b, d % b)
+        ''')
+        self.assertIn('<if expression="remainder &lt; 0">', xml)  # the divisor's sign, fixed before use
+        body = body_xml("def main():\n    t = 0\n    for i in range(10):\n        if i % 2 == 0:\n"
+                        "            t += i // 2\n    print(t)\n")
+        self.assertIn('<assign variable="t" expression="t + Int(i / 2)"/>', body)  # non-negative: plain
+        self.assertNotIn("quotient", body)
+        msgs = warnings_of("def main():\n    n = int(input())\n    print(n // 2)\n")
+        self.assertTrue(any("sign is unknown" in m for m in msgs), msgs)
+
+    def test_floor_ceil_and_round_follow_python(self):
+        xml = same_as_python(self, '''
+            import math
+
+            def main():
+                for x in [2.5, 3.5, -2.5, -3.5, 2.6, -2.6, 2.4, -2.4, 0.5, -0.5]:
+                    print(x, math.floor(x), math.ceil(x), round(x))
+                print(round(5), math.floor(9))
+        ''')
+        self.assertIn('<assign variable="rounded" expression="Int(x)"/>', xml)
+
+    def test_negative_computed_index_counts_from_the_end_only_when_negative(self):
+        same_as_python(self, '''
+            def main():
+                xs = [10, 20, 30, 40]
+                for i in range(0, 3):
+                    print(xs[-i])
+                s = "flow"
+                k = 2
+                print(s[-k])
+        ''')
+
+    def test_very_long_expressions(self):
+        code = "def main():\n    x = 1\n    y = " + " + ".join(["x"] * 800) + "\n    print(y)\n"
+        self.assertEqual(fprg_run.run_string(conv(code)), "800\n")
+
+    def test_list_methods_and_copies(self):
+        same_as_python(self, '''
+            def show(xs: list[int]):
+                line = ""
+                for x in xs:
+                    line = line + str(x) + " "
+                print(line)
+
+            def main():
+                xs = [5, 3, 8, 3, 1]
+                print(xs.index(3), xs.count(3), xs.index(1))
+                ys = sorted(xs)
+                zs = sorted(xs, reverse=True)
+                show(ys)
+                show(zs)
+                xs.sort()
+                xs.reverse()
+                show(xs)
+                cs = xs.copy()
+                cs[0] = 99
+                show(cs)
+                show(xs)
+                names = ["bob", "Al", "cy", "al"]
+                names.sort()
+                for n in names:
+                    print(n)
+        ''')
+        self.assertIn("arrays have a fixed size", error_of("def main():\n    xs = [1]\n    xs.append(2)\n"))
 
     def test_numbers_that_python_writes_with_an_exponent(self):  # C3
         cases = {"1e-05": "0.00001", "1.602176634e-19": "1.602176634 * 10 ^ -19",

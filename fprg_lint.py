@@ -1301,7 +1301,14 @@ class _Linter:
 def lint_tree(root: ET.Element, name: str = "<tree>") -> list[Finding]:
     """Lint an already parsed XML tree."""
     linter = _Linter(name)
-    linter.lint_root(root)
+    # long expressions (a sum of n terms) are n levels deep for the type checks; Python 3.11+ keeps
+    # pure-Python recursion off the C stack, so a higher limit is safe here
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(old_limit, 60_000))
+    try:
+        linter.lint_root(root)
+    finally:
+        sys.setrecursionlimit(old_limit)
     return linter.findings
 
 
