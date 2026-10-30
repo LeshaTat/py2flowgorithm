@@ -41,6 +41,15 @@ LIBRARY = {
     "Random": ([INTEGER], INTEGER), "Size": ([ARRAY], INTEGER),
 }
 CUT = "cut the fraction off with Int(...)"
+STATEMENT_HINTS = {
+    "import": "the flowgorithm library has the math functions (Sqrt, Abs, Sin, ..., pi) and Random(n)",
+    "global": "pass values in as parameters and give results back with return",
+    "nonlocal": "pass values in as parameters and give results back with return",
+    "try": "check the value with an if before using it", "raise": "Output a message instead",
+    "assert": "check with an if and Output a message", "del": "a variable cannot be removed",
+    "with": "Flowgorithm has no files or resources to open", "class": "Flowgorithm has functions only",
+    "match": "use if / elif / else",
+}
 # What to write when a library function gets the wrong kind of value.
 ARG_HINTS = {
     "ToInteger": "ToInteger() reads a whole number from text; Int(x) cuts off the fraction of a number",
@@ -161,6 +170,10 @@ def annotation_type(ann: ast.expr, allow_none: bool = False) -> FgType:
 
 def is_break_if(s: ast.stmt) -> bool:
     return isinstance(s, ast.If) and len(s.body) == 1 and isinstance(s.body[0], ast.Break) and not s.orelse
+
+
+def real_var(name: str) -> str:
+    return f"make {name} a Real from the start ({name} = 0.0, or {name}: float = 0)"
 
 
 def is_do(s: ast.stmt) -> bool:
@@ -394,7 +407,12 @@ class FunctionConverter:
     def stmt(self, s: ast.stmt) -> list:
         handler = getattr(self, "s_" + type(s).__name__, None)
         if handler is None:
-            raise self.err(f"`{type(s).__name__.lower()}` statements are not part of the Flowgorithm dialect", s)
+            kind = type(s).__name__
+            word = {"ImportFrom": "import", "AsyncFunctionDef": "async def", "FunctionDef": "def",
+                    "ClassDef": "class", "AsyncFor": "async for", "AsyncWith": "with", "TryStar": "try",
+                    "TypeAlias": "type"}.get(kind, kind.lower())
+            raise self.err(f"`{word}` statements are not part of the Flowgorithm dialect", s,
+                           STATEMENT_HINTS.get(word, ""))
         return handler(s)
 
     def s_Pass(self, s: ast.Pass) -> list:
@@ -478,11 +496,12 @@ class FunctionConverter:
         if isinstance(target, ast.Subscript):
             text, elem = self.element(target)
             what = f"an element of {target.value.id}"
+            real = f"make {target.value.id} an array of Reals from the start ({target.value.id} = [0.0] * n)"
             if self.is_input(value):
-                self.check_input(elem, self.input_type(value), value, what)
+                self.check_input(elem, self.input_type(value), value, what, real)
                 return [Input(text)]
             e = self.expr(value)
-            self.check_store(elem, e.type, value, what)
+            self.check_store(elem, e.type, value, what, real)
             return [Assign(text, e.text)]
         if not isinstance(target, ast.Name):
             raise self.err("only variables and array elements can be assigned", s)
@@ -493,7 +512,7 @@ class FunctionConverter:
         if self.is_input(value):
             kind = self.input_type(value)
             var = self.store(name, ann or kind, value, ann is not None)
-            self.check_input(var.type, kind, value, f"'{name}'")
+            self.check_input(var.type, kind, value, f"'{name}'", real_var(name))
             return [Input(var.fg)]
         if self.is_array_value(value):
             return self.new_array(name, value, s, ann)
@@ -502,7 +521,7 @@ class FunctionConverter:
             raise self.err("an array cannot be copied: make a new one with [0] * n and copy the elements "
                            "in a loop", value)
         var = self.store(name, ann or e.type, value, ann is not None)
-        self.check_store(var.type, e.type, value, f"'{name}'")
+        self.check_store(var.type, e.type, value, f"'{name}'", real_var(name))
         return [Assign(var.fg, e.text)]
 
     def store(self, name: str, t: FgType, node: ast.AST, annotated: bool) -> VarInfo:
@@ -524,20 +543,20 @@ class FunctionConverter:
             raise self.err(f"'{name}' already exists as {type_name(info.type)}", node)
         return info
 
-    def check_store(self, target: FgType, value: FgType, node: ast.AST, what: str) -> None:
-        """Flowgorithm converts an Integer into a Real variable, nothing else."""
+    def check_store(self, target: FgType, value: FgType, node: ast.AST, what: str, real: str) -> None:
+        """Flowgorithm converts an Integer into a Real variable, nothing else. `real` says how to make
+        the target a Real, for the hint."""
         if target == value or (target == REAL and value == INTEGER):
             return
         if target == INTEGER and value == REAL:
-            raise self.err(f"{what} is an Integer but gets a Real", node,
-                           "make it a Real from the start (x = 0.0, or x: float = 0), or cut the fraction "
-                           "off with Int(...)")
+            raise self.err(f"{what} is an Integer but gets a Real", node, f"{real}, or {CUT}")
         raise self.err(f"{what} is {type_name(target)} but gets {type_name(value)}", node)
 
-    def check_input(self, target: FgType, kind: FgType, node: ast.AST, what: str) -> None:
+    def check_input(self, target: FgType, kind: FgType, node: ast.AST, what: str, real: str) -> None:
         """Flowgorithm's Input reads the type of its variable, so Input() must read exactly that."""
         if target != kind:
-            raise self.err(f"{what} is {type_name(target)}: read it with Input({py_name(target)})", node)
+            raise self.err(f"{what} is {type_name(target)}: read it with Input({py_name(target)})", node,
+                           f"or {real}" if (target, kind) == (INTEGER, REAL) else "")
 
     def new_var(self, name: str, t: FgType, node: ast.AST, declared: bool = False) -> VarInfo:
         want = legalize(name)
@@ -580,7 +599,8 @@ class FunctionConverter:
             elems = [self.expr(e) for e in value.elts]
             elem = ann.elem if ann is not None else elems[0].type
             for e, node in zip(elems, value.elts):
-                self.check_store(elem, e.type, node, f"an element of {name}")
+                self.check_store(elem, e.type, node, f"an element of {name}",
+                                 f"write the first element as a Real ({name} = [1.0, ...])")
             var = self.new_var(name, ArrayT(elem), s, declared=ann is not None)
             return [Declare([var.fg], elem, True, str(len(elems)))] + [
                 Assign(f"{var.fg}[{i}]", e.text) for i, e in enumerate(elems)]
@@ -739,7 +759,8 @@ class FunctionConverter:
         if self.ret_type is None:
             self.ret_type = e.type
         else:
-            self.check_store(self.ret_type, e.type, s.value, f"the result of {self.f.name}()")
+            self.check_store(self.ret_type, e.type, s.value, f"the result of {self.f.name}()",
+                             f"let it return a Real (def {self.f.name}(...) -> float:)")
         if self.ret_var is not None and isinstance(s.value, ast.Name) and self.vars.get(s.value.id) is self.ret_var:
             if self.ret_var.type is None:  # pragma: no cover - always assigned before
                 self.ret_var.type = self.ret_type
@@ -916,7 +937,12 @@ class FunctionConverter:
     def call_error(self, n: ast.Call) -> ConvertError:
         fn = n.func
         if isinstance(fn, ast.Name):
-            return self.err(f"{fn.id}() is not part of the Flowgorithm dialect", n, INSTEAD.get(fn.id, ""))
+            hint = INSTEAD.get(fn.id, "")
+            arg = n.args[0] if len(n.args) == 1 else None
+            if fn.id in PY_TYPES and isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name) \
+                    and arg.func.id == "input":
+                hint = f"read it with x = Input({fn.id}); show the question with Output(...) first"
+            return self.err(f"{fn.id}() is not part of the Flowgorithm dialect", n, hint)
         if isinstance(fn, ast.Attribute):
             return self.err(f"methods such as .{fn.attr}() are not part of the Flowgorithm dialect", n,
                             "Flowgorithm has functions only: Len, Char, ToCode, ... (see the flowgorithm library)")
@@ -961,7 +987,8 @@ class FunctionConverter:
                 if not (isinstance(a, ast.Name) and e.type == p.type):
                     raise self.err(f"parameter '{p.name}' of {fi.name}() is an array of {type_name(p.type.elem)}", a)
             else:
-                self.check_store(p.type, e.type, a, f"parameter '{p.name}' of {fi.name}()")
+                self.check_store(p.type, e.type, a, f"parameter '{p.name}' of {fi.name}()",
+                                 f"make the parameter a Real ({p.name}: float)")
             texts.append(e.text)
         return Ex(f"{fi.fg_name}({', '.join(texts)})", P_ATOM, fi.ret_type)
 

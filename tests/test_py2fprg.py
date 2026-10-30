@@ -174,6 +174,23 @@ class StatementTest(unittest.TestCase):
         body = main_body("x = 0.0\nx = x + 1\nn: float = 0\nn = n + 0.5")  # Integer into Real is fine
         self.assertIn('<assign variable="x" expression="x + 1"/>', body)
 
+    def test_hints_name_what_to_change(self):
+        functions = "def half(n: int) -> int:\n    return n\n\ndef show(n: int):\n    Output(n)\n"
+        cases = {
+            "total = 0\ntotal = total + 0.5": "make total a Real from the start (total = 0.0",
+            "xs = [0] * 3\nxs[0] = 2.5": "make xs an array of Reals from the start (xs = [0.0] * n)",
+            "show(2.5)": "make the parameter a Real (n: float)",
+            "x = 0\nx = Input(float)": "or make x a Real from the start",
+            'x = int(input("Number? "))': "read it with x = Input(int); show the question with Output(...) first",
+            "import math": "the flowgorithm library has the math functions",
+            "try:\n    pass\nexcept ValueError:\n    pass": "check the value with an if",
+        }
+        for code, msg in cases.items():
+            with self.subTest(code=code):
+                self.assertIn(msg, error_of(program(code, functions=functions)))
+        self.assertIn("let it return a Real (def half(...) -> float:)",
+                      error_of(program("pass", functions="def half(n: int) -> int:\n    return n / 2\n")))
+
     def test_augmented_assignment(self):
         body = main_body('n = 1\nn += 2\nn *= 3\ns = "a"\ns += "b"')
         self.assertIn('<assign variable="n" expression="n + 2"/>', body)
