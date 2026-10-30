@@ -156,6 +156,76 @@ def is_break_if(s: ast.stmt) -> bool:
     return isinstance(s, ast.If) and len(s.body) == 1 and isinstance(s.body[0], ast.Break) and not s.orelse
 
 
+def is_do(s: ast.stmt) -> bool:
+    return isinstance(s, ast.While) and isinstance(s.test, ast.Constant) and s.test.value is True
+
+
+AFTER_LOOP = ("after a for loop Flowgorithm's counter is one step past Python's last value; give the variable "
+              "a new value first, or keep the value you need in another variable inside the loop")
+
+
+def first_read(node: ast.AST, names) -> Optional[ast.Name]:
+    """The first place (in source order) where `node` reads one of `names`."""
+    hits = [n for n in ast.walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in names]
+    return min(hits, key=lambda n: (n.lineno, n.col_offset), default=None)
+
+
+def stored(st: ast.stmt) -> set[str]:
+    """The variables a simple statement gives a value."""
+    if isinstance(st, ast.AnnAssign) and st.value is None:
+        return set()
+    return {n.id for n in ast.walk(st) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+
+
+def assigned(stmts: list) -> set[str]:
+    """The variables the statements give a value on every path through them."""
+    out: set[str] = set()
+    for st in stmts:
+        if isinstance(st, ast.If):
+            out |= assigned(st.body) & assigned(st.orelse)
+        elif isinstance(st, ast.While):
+            if is_do(st):
+                out |= assigned(st.body)
+        elif not isinstance(st, ast.For):
+            out |= stored(st)
+    return out
+
+
+def exposed_read(stmts: list, names) -> Optional[ast.Name]:
+    """A read of one of `names` that the statements can reach before they give that name a value."""
+    names = set(names)
+    for st in stmts:
+        if not names:
+            break
+        if isinstance(st, ast.If):
+            hit = first_read(st.test, names) or exposed_read(st.body, names) or exposed_read(st.orelse, names)
+            names -= assigned(st.body) & assigned(st.orelse)
+        elif isinstance(st, ast.While):
+            hit = first_read(st.test, names) or exposed_read(st.body, names)
+            if is_do(st):
+                names -= assigned(st.body)
+        elif isinstance(st, ast.For):
+            hit = first_read(st.iter, names) or exposed_read(st.body, names - {st.target.id})
+        else:
+            hit = first_read(st, names)
+            names -= stored(st)
+        if hit is not None:
+            return hit
+    return None
+
+
+def changed(stmts: list) -> set[str]:
+    """The variables the statements give new values, and the arrays whose elements they change."""
+    out: set[str] = set()
+    for st in stmts:
+        for n in ast.walk(st):
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                out.add(n.id)
+            elif isinstance(n, ast.Subscript) and isinstance(n.ctx, ast.Store) and isinstance(n.value, ast.Name):
+                out.add(n.value.id)
+    return out
+
+
 def stores(stmts: list, name: str) -> bool:
     return any(isinstance(n, ast.Name) and n.id == name and isinstance(n.ctx, ast.Store)
                for st in stmts for n in ast.walk(st))
@@ -175,6 +245,9 @@ class FunctionConverter:
         self.ret_var: Optional[VarInfo] = None
         self.ret_type: FgType = func.ret_type
         self.loop_vars: list[str] = []  # variables of the enclosing for loops
+        # loop variables whose for loop has ended (on some path) and that got no new value since, with
+        # the line of that loop: they hold Flowgorithm's final counter value, one step past Python's
+        self.after_loop: dict[str, int] = {}
         self.warnings: list[Warning_] = []
 
     # ------------------------------------------------------------------ utils
@@ -399,7 +472,7 @@ class FunctionConverter:
             text, elem = self.element(target)
             what = f"an element of {target.value.id}"
             if self.is_input(value):
-                self.check_store(elem, self.input_type(value), value, what)
+                self.check_input(elem, self.input_type(value), value, what)
                 return [Input(text)]
             e = self.expr(value)
             self.check_store(elem, e.type, value, what)
@@ -413,7 +486,7 @@ class FunctionConverter:
         if self.is_input(value):
             kind = self.input_type(value)
             var = self.store(name, ann or kind, value, ann is not None)
-            self.check_store(var.type, kind, value, f"'{name}'")
+            self.check_input(var.type, kind, value, f"'{name}'")
             return [Input(var.fg)]
         if self.is_array_value(value):
             return self.new_array(name, value, s, ann)
@@ -427,6 +500,7 @@ class FunctionConverter:
 
     def store(self, name: str, t: FgType, node: ast.AST, annotated: bool) -> VarInfo:
         """The variable `name` gets a value of type t (it is created by its first assignment)."""
+        self.after_loop.pop(name, None)
         info = self.vars.get(name)
         if info is None:
             if self.b.constant(name) is not None:
@@ -452,6 +526,11 @@ class FunctionConverter:
                            "make it a Real from the start (x = 0.0, or x: float = 0), or cut the fraction "
                            "off with Int(...)")
         raise self.err(f"{what} is {type_name(target)} but gets {type_name(value)}", node)
+
+    def check_input(self, target: FgType, kind: FgType, node: ast.AST, what: str) -> None:
+        """Flowgorithm's Input reads the type of its variable, so Input() must read exactly that."""
+        if target != kind:
+            raise self.err(f"{what} is {type_name(target)}: read it with Input({py_name(target)})", node)
 
     def new_var(self, name: str, t: FgType, node: ast.AST, declared: bool = False) -> VarInfo:
         want = legalize(name)
@@ -540,27 +619,50 @@ class FunctionConverter:
         cond = self.condition(s.test)
         head = header_end(self.m, s)
         col = s.col_offset + 1
+        before = dict(self.after_loop)
         if not s.orelse:
-            return [If(cond, self.block(s.body, head + 1, s.end_lineno, col), [])]
+            then = self.block(s.body, head + 1, s.end_lineno, col)
+            self.after_loop = {**before, **self.after_loop}
+            return [If(cond, then, [])]
         body_end = s.body[-1].end_lineno if s.body else head
         else_line = find_else_line(self.m, s.col_offset, body_end + 1, s.orelse[0].lineno) or s.orelse[0].lineno
-        return [If(cond, self.block(s.body, head + 1, else_line - 1, col),
-                   self.block(s.orelse, else_line, s.end_lineno, col))]
+        then = self.block(s.body, head + 1, else_line - 1, col)
+        after_then, self.after_loop = self.after_loop, before
+        other = self.block(s.orelse, else_line, s.end_lineno, col)
+        self.after_loop = {**after_then, **self.after_loop}
+        return [If(cond, then, other)]
 
     def s_While(self, s: ast.While) -> list:
         if s.orelse:
             raise self.err("while ... else is not part of the Flowgorithm dialect", s)
         head = header_end(self.m, s)
         col = s.col_offset + 1
-        if isinstance(s.test, ast.Constant) and s.test.value is True:  # Flowgorithm's Do loop
+        if is_do(s):  # Flowgorithm's Do loop
             if not s.body or not is_break_if(s.body[-1]):
                 raise self.err("`while True:` is Flowgorithm's Do loop: its last statement is `if condition: break`",
                                s, "for a loop that tests first, write `while condition:`")
             brk = s.body[-1]
             body = self.block(s.body[:-1], head + 1, brk.lineno - 1, col)
             tail = self.take_comments(brk.lineno, trailing_end(self.m, s))[0]
-            return [Do(self.negate(brk.test), body + tail)]
-        return [While(self.condition(s.test), self.block(s.body, head + 1, s.end_lineno, col))]
+            cond = self.negate(brk.test)
+            self.check_next_round(s)
+            return [Do(cond, body + tail)]
+        cond = self.condition(s.test)
+        before = dict(self.after_loop)
+        body = self.block(s.body, head + 1, s.end_lineno, col)
+        self.check_next_round(s, s.test)
+        self.after_loop = {**before, **self.after_loop}
+        return [While(cond, body)]
+
+    def check_next_round(self, loop: ast.stmt, test: Optional[ast.expr] = None) -> None:
+        """A loop's next round starts with the variables as its body left them: one that an inner for
+        loop left with its final counter value must get a new value before it is read again."""
+        own = loop.target.id if isinstance(loop, ast.For) else None
+        stale = {k: line for k, line in self.after_loop.items() if k != own}
+        hit = (first_read(test, stale) if test is not None else None) or exposed_read(loop.body, stale)
+        if hit is not None:
+            raise self.err(f"'{hit.id}' is read here when the loop repeats, after its for loop (line {stale[hit.id]})",
+                           hit, AFTER_LOOP)
 
     def s_For(self, s: ast.For) -> list:
         if s.orelse:
@@ -601,12 +703,24 @@ class FunctionConverter:
             var = self.new_var(name, INTEGER, s.target)
         elif var.type != INTEGER or var.is_const:
             raise self.err(f"'{name}' is not an Integer variable", s.target)
+        sized = {id(c.args[0]) for c in ast.walk(stop_node) if isinstance(c, ast.Call)
+                 and isinstance(c.func, ast.Name) and c.func.id == "Size" and c.args}  # an array's size is fixed
+        moved = sorted({n.id for n in ast.walk(stop_node) if isinstance(n, ast.Name) and id(n) not in sized}
+                       & changed(s.body))
+        if moved:
+            raise self.err(f"the loop changes '{moved[0]}', which range() counts to", stop_node,
+                           "Python fixes the end of range() when the loop starts; copy it into a variable "
+                           "the loop does not change")
         end = plus(stop, -1 if step > 0 else 1)
+        self.after_loop.pop(name, None)
+        before = dict(self.after_loop)
         self.loop_vars.append(name)
         try:
             body = self.block(s.body, header_end(self.m, s) + 1, s.end_lineno, s.col_offset + 1)
         finally:
             self.loop_vars.pop()
+        self.check_next_round(s)
+        self.after_loop = {**before, **self.after_loop, name: s.lineno}
         return [For(var.fg, start.text, end, "inc" if step > 0 else "dec", str(abs(step)), body)]
 
     def do_return(self, s: ast.Return) -> list:
@@ -658,7 +772,8 @@ class FunctionConverter:
         if handler is None:
             what = {"JoinedStr": "f-strings", "IfExp": "conditional expressions", "ListComp": "list comprehensions",
                     "Dict": "dictionaries", "Tuple": "tuples", "Lambda": "lambdas",
-                    "Attribute": "attributes and methods", "List": "lists inside expressions"}.get(
+                    "Attribute": "attributes and methods", "List": "lists inside expressions",
+                    "NamedExpr": "assignment expressions (:=)", "Set": "sets", "Await": "await"}.get(
                 type(node).__name__, type(node).__name__)
             hint = {"JoinedStr": "pass the values to Output(...), or join Strings with + and ToString(...)",
                     "IfExp": "use an if statement"}.get(type(node).__name__, "")
@@ -689,6 +804,8 @@ class FunctionConverter:
     def lookup(self, n: ast.Name) -> VarInfo:
         info = self.vars.get(n.id)
         if info is not None:
+            if n.id in self.after_loop:
+                raise self.err(f"'{n.id}' is read after its for loop (line {self.after_loop[n.id]})", n, AFTER_LOOP)
             return info
         const = self.b.constant(n.id)
         if const is not None:  # a module constant: declared and set in every function that uses it

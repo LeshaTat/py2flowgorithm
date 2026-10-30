@@ -130,6 +130,14 @@ do the same thing:
 * Loops have no `break`/`continue`, apart from the Do loop pattern above.
 * A For loop counts with its variable: the body must not change it; nested loops use different
   variables; there is no `for x in list` (write `for i in range(Size(xs))`).
+* After the loop Flowgorithm's counter is one step past Python's last value (`for i in range(3)`
+  leaves `i` at 3, not 2), so the variable gets a new value before it is read again — also in the
+  next round of a loop around it. Keep a value you need in another variable inside the loop.
+* Python fixes where `range()` ends when the loop starts, so the body must not change what the
+  end is computed from (`for i in range(n)` with `n = n - 1` inside is reported; `Size(xs)` is
+  fine, an array keeps its size).
+* `Input(...)` names the type of the variable it reads into (`x = Input(float)` for a Real `x`),
+  because Flowgorithm's Input reads whatever its variable holds.
 * Arrays have a fixed size and start out as 0 / 0.0 / "" / false; arrays are not copied or
   returned.
 * There is no `//` (write `Int(a / b)`), no f-strings (pass several values to `Output`), no

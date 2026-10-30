@@ -252,9 +252,37 @@ class StatementTest(unittest.TestCase):
         for code, msg in {"for i in range(3):\n    i = 5": "changed inside its loop",
                           "for i in range(3):\n    for i in range(2):\n        pass": "enclosing for loop",
                           "xs = [0] * 2\nfor x in xs:\n    pass": "counts with range()",
-                          "n = 2\nfor i in range(0, 9, n):\n    pass": "written as a number"}.items():
+                          "n = 2\nfor i in range(0, 9, n):\n    pass": "written as a number",
+                          "n = 3\nfor i in range(n):\n    n = n - 1": "the loop changes 'n', which range() counts to",
+                          "xs = [0] * 2\nfor i in range(xs[0]):\n    xs[1] = i": "the loop changes 'xs'"}.items():
             with self.subTest(code=code):
                 self.assertIn(msg, error_of(program(code)))
+        main_body("xs = [0] * 3\nfor i in range(Size(xs)):\n    xs[i] = i")  # an array keeps its size
+
+    def test_a_for_variable_after_its_loop(self):
+        # Flowgorithm's counter ends one step past Python's last value: it gets a new value first
+        cases = {
+            "for i in range(3):\n    pass\nOutput(i)": "'i' is read after its for loop (line 8)",
+            "n = Input(int)\ni = 0\nif n > 0:\n    for i in range(n):\n        pass\nOutput(i)": "after its for loop",
+            "for i in range(3):\n    pass\ni += 1": "after its for loop",
+            "i = 0\nn = 0\nwhile n < 3:\n    Output(i)\n    for i in range(2):\n        n = n + 1":
+                "'i' is read here when the loop repeats, after its for loop (line 12)",
+            "i = 0\nwhile i < 3:\n    for i in range(2):\n        pass": "when the loop repeats",
+            "j = 0\nfor t in range(3):\n    if t > 0:\n        Output(j)\n    for j in range(2):\n        pass":
+                "when the loop repeats",
+        }
+        for code, msg in cases.items():
+            with self.subTest(code=code):
+                self.assertIn(msg, error_of(program(code)))
+        main_body("for t in range(3):\n    j = 0\n    if t > 0:\n        Output(j)\n    for j in range(2):\n        pass")
+        self.assertIn("give the variable a new value first", error_of(program("for i in range(3):\n    pass\n"
+                                                                              "Output(i)")))
+
+    def test_input_reads_the_type_of_its_variable(self):
+        self.assertIn("'x' is Real: read it with Input(float)", error_of(program("x = 0.0\nx = Input(int)")))
+        self.assertIn("'n' is Integer: read it with Input(int)", error_of(program("n: int = Input(float)")))
+        self.assertIn("an element of xs is Integer: read it with Input(int)",
+                      error_of(program("xs = [0] * 2\nxs[0] = Input(str)")))
 
     def test_functions_and_returns(self):
         xml = conv(program("Output(square(3), average(4, 5))\nshow(\"x\")", functions='''
@@ -352,6 +380,7 @@ class ExpressionTest(unittest.TestCase):
             "n = 1e-9": "no plain decimal form", "n = Len(5)": "needs a String", "n = Char(s)": "takes 2 arguments",
             "n = Input()": "", "if a:\n    pass": "a condition is true or false", "a, b = b, a": "one variable at a time",
             "n = Random": "is not a value", "n = q": "used before it gets a value", "n = x in xs": "comparisons are not part",
+            "if (n := 3) > a:\n    pass": "assignment expressions (:=)", "n = {1, 2}": "sets",
         }
         setup = 'a = 1\nb = 2\ns = "x"\nok = True\nxs = [0] * 3\n'
         for code, msg in cases.items():
@@ -406,6 +435,25 @@ class DifferentialTest(unittest.TestCase):
                     line = line + "*"
                 return line
         '''), randoms=list(range(20)))
+
+    def test_for_variables_with_new_values(self):
+        same_as_python(self, program('''
+            for i in range(3):
+                Output(i)
+            i = 10
+            Output(i)
+            for row in range(4):
+                total = 0
+                for col in range(row):
+                    total = total + col
+                col = row * 2
+                Output(row, " ", total, " ", col)
+            xs = [0] * 3
+            for k in range(Size(xs)):
+                xs[k] = k * k
+            for k in range(Size(xs) - 1, -1, -1):
+                Output(xs[k])
+        '''))
 
 
 class CommandLineTest(unittest.TestCase):
