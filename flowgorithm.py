@@ -1,0 +1,267 @@
+"""flowgorithm - write a Flowgorithm program in Python.
+
+Put this file next to your program and start it with ``from flowgorithm import *``. You get
+Flowgorithm's console statements and its built-in functions, with Flowgorithm's behaviour:
+
+* ``Output(value, ...)`` prints like Flowgorithm's Output shape: the values joined without
+  spaces (``Output("Total: ", total)`` is ``"Total: " & total``), numbers the way Flowgorithm
+  shows them (``2``, not ``2.0``), Booleans as ``true`` / ``false``. ``newline=False`` keeps the
+  cursor on the line.
+* ``x = Input(int)`` reads one line like Flowgorithm's Input shape into an Integer; ``float``
+  for Real, ``str`` for String, ``bool`` for Boolean (``true`` / ``false``).
+* ``Abs Arccos Arcsin Arctan Char Cos Int Len Ln Log Log10 Random Sgn Sin Size Sqrt Tan ToChar
+  ToCode ToFixed ToInteger ToReal ToString`` and ``pi`` work like Flowgorithm's intrinsic
+  functions (``Int`` cuts off the fraction, ``Char(s, i)`` counts from 0, ``Random(n)`` gives
+  0 .. n-1, ``ToFixed(x, 2)`` gives a String, ...).
+
+Running the Python program then shows what the flowchart will show, and ``py2fprg`` turns it
+into the flowchart shape for shape. Where Flowgorithm would stop with an error (a bad input, an
+index out of range, the square root of a negative number) these functions raise
+``FlowgorithmError``.
+"""
+from __future__ import annotations
+
+import math as _math
+import random as _random
+import re as _re
+
+__all__ = ["Output", "Input", "Abs", "Arccos", "Arcsin", "Arctan", "Char", "Cos", "Int", "Len", "Ln",
+           "Log", "Log10", "Random", "Sgn", "Sin", "Size", "Sqrt", "Tan", "ToChar", "ToCode", "ToFixed",
+           "ToInteger", "ToReal", "ToString", "pi", "FlowgorithmError"]
+
+pi = _math.pi
+_INT_TEXT = _re.compile(r"[+-]?[0-9]+")
+
+
+class FlowgorithmError(Exception):
+    """Something that stops a Flowgorithm program: a bad input, an index out of range, ..."""
+
+
+def _text(value) -> str:
+    """A value as Flowgorithm's Output, `&` and ToString show it."""
+    t = type(value)
+    if t is bool:
+        return "true" if value else "false"
+    if t is int:
+        return str(value)
+    if t is float:
+        if value != value:
+            return "NaN"
+        if value in (_math.inf, -_math.inf):
+            return "Infinity" if value > 0 else "-Infinity"
+        if value.is_integer() and abs(value) < 1e15:
+            return str(int(value))
+        return repr(value).replace("e", "E")
+    if t is str:
+        return value
+    if isinstance(value, list):
+        raise FlowgorithmError("an array cannot be output; output its elements one by one")
+    raise FlowgorithmError(f"cannot output a value of type {t.__name__}")
+
+
+def _number(name: str, value):
+    if type(value) not in (int, float):
+        raise FlowgorithmError(f"{name}() needs a number, got {_text_or_type(value)}")
+    return value
+
+
+def _integer(name: str, value) -> int:
+    if type(value) is not int:
+        raise FlowgorithmError(f"{name}() needs an Integer, got {_text_or_type(value)}")
+    return value
+
+
+def _string(name: str, value) -> str:
+    if type(value) is not str:
+        raise FlowgorithmError(f"{name}() needs a String, got {_text_or_type(value)}")
+    return value
+
+
+def _text_or_type(value) -> str:
+    return f"the {type(value).__name__} {value!r}"
+
+
+# --------------------------------------------------------------------------- console
+def Output(*values, newline: bool = True) -> None:
+    """Flowgorithm's Output shape: the values joined like `&` (no spaces added)."""
+    print("".join(_text(v) for v in values), end="\n" if newline else "", flush=True)
+
+
+def Input(kind=str):
+    """Flowgorithm's Input shape: read one line as an Integer (int), Real (float), String (str)
+    or Boolean (bool). An Integer accepts only whole-number text, as in Flowgorithm."""
+    line = input()
+    if kind is str:
+        return line
+    s = line.strip()
+    if kind is int:
+        if _INT_TEXT.fullmatch(s):
+            return int(s)
+        raise FlowgorithmError(f"the input {line!r} is not an Integer")
+    if kind is float:
+        try:
+            return float(s)
+        except ValueError:
+            raise FlowgorithmError(f"the input {line!r} is not a Real") from None
+    if kind is bool:
+        if s.lower() in ("true", "false"):
+            return s.lower() == "true"
+        raise FlowgorithmError(f"the input {line!r} is not a Boolean (true / false)")
+    raise FlowgorithmError("Input() needs int, float, str or bool")
+
+
+# --------------------------------------------------------------------------- math
+def Abs(n):
+    return abs(_number("Abs", n))
+
+
+def Sgn(n) -> int:
+    n = _number("Sgn", n)
+    return (n > 0) - (n < 0)
+
+
+def Int(n) -> int:
+    """The whole-number part (toward zero): Int(3.7) is 3, Int(-3.7) is -3."""
+    n = _number("Int", n)
+    if type(n) is float and (n != n or n in (_math.inf, -_math.inf)):
+        raise FlowgorithmError(f"Int() of {_text(n)}")
+    return int(n)
+
+
+def Sqrt(n) -> float:
+    n = _number("Sqrt", n)
+    if n < 0:
+        raise FlowgorithmError(f"Sqrt() of a negative number ({_text(n)})")
+    return _math.sqrt(n)
+
+
+def Sin(n) -> float:
+    return _math.sin(_number("Sin", n))
+
+
+def Cos(n) -> float:
+    return _math.cos(_number("Cos", n))
+
+
+def Tan(n) -> float:
+    return _math.tan(_number("Tan", n))
+
+
+def Arcsin(n) -> float:
+    n = _number("Arcsin", n)
+    if not -1 <= n <= 1:
+        raise FlowgorithmError(f"Arcsin() argument {_text(n)} is outside -1..1")
+    return _math.asin(n)
+
+
+def Arccos(n) -> float:
+    n = _number("Arccos", n)
+    if not -1 <= n <= 1:
+        raise FlowgorithmError(f"Arccos() argument {_text(n)} is outside -1..1")
+    return _math.acos(n)
+
+
+def Arctan(n) -> float:
+    return _math.atan(_number("Arctan", n))
+
+
+def _log(name: str, n, base10: bool = False) -> float:
+    n = _number(name, n)
+    if n <= 0:
+        raise FlowgorithmError(f"{name}() of a non-positive number ({_text(n)})")
+    return _math.log10(n) if base10 else _math.log(n)
+
+
+def Ln(n) -> float:
+    """The natural logarithm."""
+    return _log("Ln", n)
+
+
+def Log(n) -> float:
+    """The natural logarithm (as Flowgorithm's Log)."""
+    return _log("Log", n)
+
+
+def Log10(n) -> float:
+    return _log("Log10", n, True)
+
+
+# --------------------------------------------------------------------------- strings and conversion
+def Len(s: str) -> int:
+    """The number of characters of a String (Size() is for arrays)."""
+    return len(_string("Len", s))
+
+
+def Char(s: str, i: int) -> str:
+    """The character at position i, counting from 0."""
+    s, i = _string("Char", s), _integer("Char", i)
+    if not 0 <= i < len(s):
+        raise FlowgorithmError(f"Char() index {i} is out of range for a string of length {len(s)}")
+    return s[i]
+
+
+def ToChar(code: int) -> str:
+    code = _integer("ToChar", code)
+    if not 0 <= code <= 0x10FFFF:
+        raise FlowgorithmError(f"ToChar() code {code} is not a valid character code")
+    return chr(code)
+
+
+def ToCode(s: str) -> int:
+    s = _string("ToCode", s)
+    if not s:
+        raise FlowgorithmError("ToCode() of an empty string")
+    return ord(s[0])
+
+
+def ToFixed(n, decimals: int) -> str:
+    """A String with exactly `decimals` digits after the point: ToFixed(2.5, 2) is "2.50"."""
+    n, decimals = _number("ToFixed", n), _integer("ToFixed", decimals)
+    if decimals < 0:
+        raise FlowgorithmError(f"ToFixed() needs a non-negative number of decimals, got {decimals}")
+    return f"{float(n):.{decimals}f}"
+
+
+def ToInteger(value) -> int:
+    """A whole number from text ("42"), or from a number (cutting off the fraction)."""
+    if type(value) is int:
+        return value
+    if type(value) is float:
+        return Int(value)
+    if type(value) is str:
+        if _INT_TEXT.fullmatch(value.strip()):
+            return int(value.strip())
+        raise FlowgorithmError(f"ToInteger() cannot convert {value!r}")
+    raise FlowgorithmError(f"ToInteger() cannot convert {_text_or_type(value)}")
+
+
+def ToReal(value) -> float:
+    if type(value) in (int, float):
+        return float(value)
+    if type(value) is str:
+        try:
+            return float(value.strip())
+        except ValueError:
+            raise FlowgorithmError(f"ToReal() cannot convert {value!r}") from None
+    raise FlowgorithmError(f"ToReal() cannot convert {_text_or_type(value)}")
+
+
+def ToString(value) -> str:
+    """A value as text, exactly as Output would show it."""
+    return _text(value)
+
+
+# --------------------------------------------------------------------------- other
+def Random(n: int) -> int:
+    """A random Integer from 0 to n - 1."""
+    n = _integer("Random", n)
+    if n <= 0:
+        raise FlowgorithmError(f"Random() needs a positive Integer, got {n}")
+    return _random.randrange(n)
+
+
+def Size(array: list) -> int:
+    """The number of elements of an array (Len() is for strings)."""
+    if not isinstance(array, list):
+        raise FlowgorithmError(f"Size() needs an array, got {_text_or_type(array)}")
+    return len(array)

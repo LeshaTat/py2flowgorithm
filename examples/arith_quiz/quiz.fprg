@@ -3,10 +3,10 @@
     <attributes>
         <attribute name="name" value="Arithmetic Quiz"/>
         <attribute name="authors" value="alekseitatuzov"/>
-        <attribute name="about" value="Arithmetic Quiz.&#13;&#10;&#13;&#10;An interactive arithmetic quiz: the player chooses how many questions to answer,&#13;&#10;solves random addition, subtraction and multiplication problems and gets a grade.&#13;&#10;The program only uses input()/print() and plain functions, so py2fprg can turn&#13;&#10;it into a Flowgorithm flowchart; the unit tests in tests/ stay in Python."/>
-        <attribute name="saved" value="2026-10-30 01:13:53 PM"/>
-        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswMToxMzo1MyBQTTsw"/>
-        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswMToxMzo1MyBQTTsxOzA="/>
+        <attribute name="about" value="Arithmetic Quiz.&#13;&#10;&#13;&#10;The player chooses how many questions to answer, solves random addition, subtraction&#13;&#10;and multiplication problems and gets a grade. test_quiz.py checks the functions and&#13;&#10;plays whole games with scripted answers."/>
+        <attribute name="saved" value="2026-10-30 07:38:32 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozODozMiBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozODozMiBQTTsxOzA="/>
     </attributes>
     <function name="Main" type="None" variable="">
         <parameters/>
@@ -20,14 +20,224 @@
             <input variable="name"/>
             <assign variable="play" expression="true"/>
             <while expression="play">
-                <assign variable="count" expression="askInt(&quot;How many questions, &quot; &amp; name &amp; &quot;? (1-&quot; &amp; maxQuestions &amp; &quot;)&quot;, 1, maxQuestions)"/>
+                <output expression="&quot;How many questions, &quot; &amp; name &amp; &quot;? (1-&quot; &amp; maxQuestions &amp; &quot;)&quot;" newline="True"/>
+                <assign variable="count" expression="askInt(1, maxQuestions)"/>
                 <assign variable="score" expression="playRound(count)"/>
                 <assign variable="percent" expression="percentage(score, count)"/>
                 <output expression="name &amp; &quot;, you scored &quot; &amp; plural(score, &quot;point&quot;) &amp; &quot; out of &quot; &amp; count &amp; &quot; (&quot; &amp; percent &amp; &quot;%).&quot;" newline="True"/>
                 <output expression="&quot;Your grade: &quot; &amp; grade(percent)" newline="True"/>
-                <assign variable="play" expression="askYesNo(&quot;Play again? (y/n)&quot;)"/>
+                <output expression="&quot;Play again? (y/n)&quot;" newline="True"/>
+                <assign variable="play" expression="askYesNo()"/>
             </while>
             <output expression="&quot;Goodbye!&quot;" newline="True"/>
+        </body>
+    </function>
+    <function name="askInt" type="Integer" variable="value">
+        <parameters>
+            <parameter name="low" type="Integer" array="False"/>
+            <parameter name="high" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="Read whole numbers until one is between low and high (inclusive)."/>
+            <declare name="value" type="Integer" array="False" size=""/>
+            <input variable="value"/>
+            <while expression="value &lt; low or value &gt; high">
+                <output expression="&quot;Please enter a number from &quot; &amp; low &amp; &quot; to &quot; &amp; high &amp; &quot;.&quot;" newline="True"/>
+                <input variable="value"/>
+            </while>
+        </body>
+    </function>
+    <function name="isYes" type="Boolean" variable="yes">
+        <parameters>
+            <parameter name="answer" type="String" array="False"/>
+        </parameters>
+        <body>
+            <comment text="True when the answer starts with y or Y."/>
+            <declare name="yes" type="Boolean" array="False" size=""/>
+            <declare name="first" type="String" array="False" size=""/>
+            <assign variable="yes" expression="false"/>
+            <if expression="Len(answer) &gt; 0">
+                <then>
+                    <assign variable="first" expression="Char(answer, 0)"/>
+                    <assign variable="yes" expression="first == &quot;y&quot; or first == &quot;Y&quot;"/>
+                </then>
+                <else/>
+            </if>
+        </body>
+    </function>
+    <function name="isYesOrNo" type="Boolean" variable="valid">
+        <parameters>
+            <parameter name="answer" type="String" array="False"/>
+        </parameters>
+        <body>
+            <comment text="True when the answer starts with y, Y, n or N."/>
+            <declare name="valid" type="Boolean" array="False" size=""/>
+            <declare name="first" type="String" array="False" size=""/>
+            <assign variable="valid" expression="false"/>
+            <if expression="Len(answer) &gt; 0">
+                <then>
+                    <assign variable="first" expression="Char(answer, 0)"/>
+                    <assign variable="valid" expression="first == &quot;y&quot; or first == &quot;Y&quot; or first == &quot;n&quot; or first == &quot;N&quot;"/>
+                </then>
+                <else/>
+            </if>
+        </body>
+    </function>
+    <function name="askYesNo" type="Boolean" variable="result">
+        <parameters/>
+        <body>
+            <comment text="Read answers until one starts with y, Y, n or N; true for yes."/>
+            <declare name="answer" type="String" array="False" size=""/>
+            <declare name="result" type="Boolean" array="False" size=""/>
+            <do expression="not isYesOrNo(answer)">
+                <input variable="answer"/>
+            </do>
+            <assign variable="result" expression="isYes(answer)"/>
+        </body>
+    </function>
+    <function name="questionText" type="String" variable="result">
+        <parameters>
+            <parameter name="kind" type="Integer" array="False"/>
+            <parameter name="a" type="Integer" array="False"/>
+            <parameter name="b" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="The question as shown to the player, e.g. '7 x 8 = ?'."/>
+            <declare name="ADD, SUBTRACT" type="Integer" array="False" size=""/>
+            <declare name="sign, result" type="String" array="False" size=""/>
+            <assign variable="ADD" expression="1"/>
+            <assign variable="SUBTRACT" expression="3"/>
+            <if expression="kind == ADD">
+                <then>
+                    <assign variable="sign" expression="&quot; + &quot;"/>
+                </then>
+                <else>
+                    <if expression="kind == SUBTRACT">
+                        <then>
+                            <assign variable="sign" expression="&quot; - &quot;"/>
+                        </then>
+                        <else>
+                            <assign variable="sign" expression="&quot; x &quot;"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
+            <assign variable="result" expression="ToString(a) &amp; sign &amp; ToString(b) &amp; &quot; = ?&quot;"/>
+        </body>
+    </function>
+    <function name="correctAnswer" type="Integer" variable="answer">
+        <parameters>
+            <parameter name="kind" type="Integer" array="False"/>
+            <parameter name="a" type="Integer" array="False"/>
+            <parameter name="b" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="The right answer for a question."/>
+            <declare name="answer, ADD, SUBTRACT" type="Integer" array="False" size=""/>
+            <assign variable="ADD" expression="1"/>
+            <assign variable="SUBTRACT" expression="3"/>
+            <if expression="kind == ADD">
+                <then>
+                    <assign variable="answer" expression="a + b"/>
+                </then>
+                <else>
+                    <if expression="kind == SUBTRACT">
+                        <then>
+                            <assign variable="answer" expression="a - b"/>
+                        </then>
+                        <else>
+                            <assign variable="answer" expression="a * b"/>
+                        </else>
+                    </if>
+                </else>
+            </if>
+        </body>
+    </function>
+    <function name="percentage" type="Integer" variable="percent">
+        <parameters>
+            <parameter name="score" type="Integer" array="False"/>
+            <parameter name="total" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="Whole-number percentage of correct answers (0 when nothing was asked)."/>
+            <declare name="percent" type="Integer" array="False" size=""/>
+            <assign variable="percent" expression="0"/>
+            <if expression="total &gt; 0">
+                <then>
+                    <assign variable="percent" expression="Int(score * 100 / total)"/>
+                </then>
+                <else/>
+            </if>
+        </body>
+    </function>
+    <function name="grade" type="String" variable="letter">
+        <parameters>
+            <parameter name="percent" type="Integer" array="False"/>
+        </parameters>
+        <body>
+            <comment text="Letter grade for a percentage."/>
+            <declare name="letter" type="String" array="False" size=""/>
+            <if expression="percent &gt;= 90">
+                <then>
+                    <assign variable="letter" expression="&quot;A&quot;"/>
+                </then>
+                <else>
+                    <if expression="percent &gt;= 75">
+                        <then>
+                            <assign variable="letter" expression="&quot;B&quot;"/>
+                        </then>
+                        <else>
+                            <if expression="percent &gt;= 50">
+                                <then>
+                                    <assign variable="letter" expression="&quot;C&quot;"/>
+                                </then>
+                                <else>
+                                    <assign variable="letter" expression="&quot;F&quot;"/>
+                                </else>
+                            </if>
+                        </else>
+                    </if>
+                </else>
+            </if>
+        </body>
+    </function>
+    <function name="plural" type="String" variable="text">
+        <parameters>
+            <parameter name="count" type="Integer" array="False"/>
+            <parameter name="word" type="String" array="False"/>
+        </parameters>
+        <body>
+            <comment text="'1 point' or '3 points'."/>
+            <declare name="text" type="String" array="False" size=""/>
+            <assign variable="text" expression="ToString(count) &amp; &quot; &quot; &amp; word"/>
+            <if expression="count != 1">
+                <then>
+                    <assign variable="text" expression="text &amp; &quot;s&quot;"/>
+                </then>
+                <else/>
+            </if>
+        </body>
+    </function>
+    <function name="showSummary" type="None" variable="">
+        <parameters>
+            <parameter name="results" type="Boolean" array="True"/>
+        </parameters>
+        <body>
+            <comment text="One line with a star for every correct answer and a dash for a wrong one."/>
+            <declare name="line" type="String" array="False" size=""/>
+            <declare name="i" type="Integer" array="False" size=""/>
+            <assign variable="line" expression="&quot;&quot;"/>
+            <for variable="i" start="0" end="Size(results) - 1" direction="inc" step="1">
+                <if expression="results[i]">
+                    <then>
+                        <assign variable="line" expression="line &amp; &quot;*&quot;"/>
+                    </then>
+                    <else>
+                        <assign variable="line" expression="line &amp; &quot;-&quot;"/>
+                    </else>
+                </if>
+            </for>
+            <output expression="&quot;Results: &quot; &amp; line" newline="True"/>
         </body>
     </function>
     <function name="playRound" type="Integer" variable="score">
@@ -35,19 +245,19 @@
             <parameter name="count" type="Integer" array="False"/>
         </parameters>
         <body>
-            <comment text="Ask `count` random questions and return the number of correct answers."/>
-            <declare name="score, i, ADD, SUBTRACT, kind, maxNumber, a, b, answer" type="Integer" array="False" size=""/>
-            <assign variable="ADD" expression="1"/>
-            <assign variable="SUBTRACT" expression="3"/>
+            <comment text="Ask `count` random questions; the result is the number of correct answers."/>
+            <declare name="score, i, kind, maxNumber, a, b, answer" type="Integer" array="False" size=""/>
             <assign variable="maxNumber" expression="12"/>
             <comment text="which questions were answered correctly"/>
             <declare name="results" type="Boolean" array="True" size="count"/>
             <assign variable="score" expression="0"/>
             <for variable="i" start="0" end="count - 1" direction="inc" step="1">
-                <assign variable="kind" expression="ADD + Random(SUBTRACT - ADD + 1)"/>
-                <assign variable="a" expression="1 + Random(maxNumber)"/>
-                <assign variable="b" expression="1 + Random(maxNumber)"/>
-                <assign variable="answer" expression="askInt(&quot;Question &quot; &amp; i + 1 &amp; &quot;: &quot; &amp; questionText(kind, a, b), -1000, 1000)"/>
+                <comment text="ADD, MULTIPLY or SUBTRACT"/>
+                <assign variable="kind" expression="Random(3) + 1"/>
+                <assign variable="a" expression="Random(maxNumber) + 1"/>
+                <assign variable="b" expression="Random(maxNumber) + 1"/>
+                <output expression="&quot;Question &quot; &amp; i + 1 &amp; &quot;: &quot; &amp; questionText(kind, a, b)" newline="True"/>
+                <assign variable="answer" expression="askInt(-1000, 1000)"/>
                 <if expression="answer == correctAnswer(kind, a, b)">
                     <then>
                         <output expression="&quot;Correct!&quot;" newline="True"/>
@@ -60,225 +270,6 @@
                 </if>
             </for>
             <call expression="showSummary(results)"/>
-        </body>
-    </function>
-    <function name="showSummary" type="None" variable="">
-        <parameters>
-            <parameter name="results" type="Boolean" array="True"/>
-        </parameters>
-        <body>
-            <comment text="Print one line with a star for every correct answer and a dash for a wrong one."/>
-            <declare name="line" type="String" array="False" size=""/>
-            <declare name="okIndex" type="Integer" array="False" size=""/>
-            <declare name="ok" type="Boolean" array="False" size=""/>
-            <assign variable="line" expression="&quot;&quot;"/>
-            <for variable="okIndex" start="0" end="Size(results) - 1" direction="inc" step="1">
-                <assign variable="ok" expression="results[okIndex]"/>
-                <if expression="ok">
-                    <then>
-                        <assign variable="line" expression="line &amp; &quot;*&quot;"/>
-                    </then>
-                    <else>
-                        <assign variable="line" expression="line &amp; &quot;-&quot;"/>
-                    </else>
-                </if>
-            </for>
-            <output expression="&quot;Results: &quot; &amp; line" newline="True"/>
-        </body>
-    </function>
-    <function name="askInt" type="Integer" variable="value">
-        <parameters>
-            <parameter name="prompt" type="String" array="False"/>
-            <parameter name="low" type="Integer" array="False"/>
-            <parameter name="high" type="Integer" array="False"/>
-        </parameters>
-        <body>
-            <comment text="Ask until the player types a whole number between low and high (inclusive)."/>
-            <declare name="value" type="Integer" array="False" size=""/>
-            <output expression="prompt" newline="True"/>
-            <input variable="value"/>
-            <while expression="value &lt; low or value &gt; high">
-                <output expression="&quot;Please enter a number from &quot; &amp; low &amp; &quot; to &quot; &amp; high &amp; &quot;.&quot;" newline="True"/>
-                <output expression="prompt" newline="True"/>
-                <input variable="value"/>
-            </while>
-        </body>
-    </function>
-    <function name="askYesNo" type="Boolean" variable="result">
-        <parameters>
-            <parameter name="prompt" type="String" array="False"/>
-        </parameters>
-        <body>
-            <comment text="Ask a yes/no question until the answer starts with y, Y, n or N."/>
-            <declare name="result" type="Boolean" array="False" size=""/>
-            <declare name="answer" type="String" array="False" size=""/>
-            <do expression="not isYesOrNo(answer)">
-                <output expression="prompt" newline="True"/>
-                <input variable="answer"/>
-            </do>
-            <assign variable="result" expression="isYes(answer)"/>
-        </body>
-    </function>
-    <function name="isYes" type="Boolean" variable="result">
-        <parameters>
-            <parameter name="answer" type="String" array="False"/>
-        </parameters>
-        <body>
-            <comment text="True when the answer starts with y or Y."/>
-            <declare name="result" type="Boolean" array="False" size=""/>
-            <declare name="first" type="String" array="False" size=""/>
-            <if expression="Len(answer) == 0">
-                <then>
-                    <assign variable="result" expression="false"/>
-                </then>
-                <else>
-                    <assign variable="first" expression="Char(answer, 0)"/>
-                    <assign variable="result" expression="first == &quot;y&quot; or first == &quot;Y&quot;"/>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="isYesOrNo" type="Boolean" variable="result">
-        <parameters>
-            <parameter name="answer" type="String" array="False"/>
-        </parameters>
-        <body>
-            <comment text="True when the answer starts with y, Y, n or N."/>
-            <declare name="result" type="Boolean" array="False" size=""/>
-            <declare name="first" type="String" array="False" size=""/>
-            <if expression="Len(answer) == 0">
-                <then>
-                    <assign variable="result" expression="false"/>
-                </then>
-                <else>
-                    <assign variable="first" expression="Char(answer, 0)"/>
-                    <assign variable="result" expression="first == &quot;y&quot; or first == &quot;Y&quot; or first == &quot;n&quot; or first == &quot;N&quot;"/>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="questionText" type="String" variable="result">
-        <parameters>
-            <parameter name="kind" type="Integer" array="False"/>
-            <parameter name="a" type="Integer" array="False"/>
-            <parameter name="b" type="Integer" array="False"/>
-        </parameters>
-        <body>
-            <comment text="The question as shown to the player, e.g. '7 x 8 = ?'."/>
-            <declare name="result" type="String" array="False" size=""/>
-            <declare name="ADD, SUBTRACT" type="Integer" array="False" size=""/>
-            <assign variable="ADD" expression="1"/>
-            <assign variable="SUBTRACT" expression="3"/>
-            <if expression="kind == ADD">
-                <then>
-                    <assign variable="result" expression="a &amp; &quot; + &quot; &amp; b &amp; &quot; = ?&quot;"/>
-                </then>
-                <else>
-                    <if expression="kind == SUBTRACT">
-                        <then>
-                            <assign variable="result" expression="a &amp; &quot; - &quot; &amp; b &amp; &quot; = ?&quot;"/>
-                        </then>
-                        <else>
-                            <assign variable="result" expression="a &amp; &quot; x &quot; &amp; b &amp; &quot; = ?&quot;"/>
-                        </else>
-                    </if>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="correctAnswer" type="Integer" variable="result">
-        <parameters>
-            <parameter name="kind" type="Integer" array="False"/>
-            <parameter name="a" type="Integer" array="False"/>
-            <parameter name="b" type="Integer" array="False"/>
-        </parameters>
-        <body>
-            <comment text="The right answer for a question."/>
-            <declare name="result, ADD, SUBTRACT" type="Integer" array="False" size=""/>
-            <assign variable="ADD" expression="1"/>
-            <assign variable="SUBTRACT" expression="3"/>
-            <if expression="kind == ADD">
-                <then>
-                    <assign variable="result" expression="a + b"/>
-                </then>
-                <else>
-                    <if expression="kind == SUBTRACT">
-                        <then>
-                            <assign variable="result" expression="a - b"/>
-                        </then>
-                        <else>
-                            <assign variable="result" expression="a * b"/>
-                        </else>
-                    </if>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="percentage" type="Integer" variable="result">
-        <parameters>
-            <parameter name="score" type="Integer" array="False"/>
-            <parameter name="total" type="Integer" array="False"/>
-        </parameters>
-        <body>
-            <comment text="Whole-number percentage of correct answers (0 when nothing was asked)."/>
-            <declare name="result" type="Integer" array="False" size=""/>
-            <if expression="total == 0">
-                <then>
-                    <assign variable="result" expression="0"/>
-                </then>
-                <else>
-                    <assign variable="result" expression="Int(score * 100 / total)"/>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="grade" type="String" variable="result">
-        <parameters>
-            <parameter name="percent" type="Integer" array="False"/>
-        </parameters>
-        <body>
-            <comment text="Letter grade for a percentage."/>
-            <declare name="result" type="String" array="False" size=""/>
-            <if expression="percent &gt;= 90">
-                <then>
-                    <assign variable="result" expression="&quot;A&quot;"/>
-                </then>
-                <else>
-                    <if expression="percent &gt;= 75">
-                        <then>
-                            <assign variable="result" expression="&quot;B&quot;"/>
-                        </then>
-                        <else>
-                            <if expression="percent &gt;= 50">
-                                <then>
-                                    <assign variable="result" expression="&quot;C&quot;"/>
-                                </then>
-                                <else>
-                                    <assign variable="result" expression="&quot;F&quot;"/>
-                                </else>
-                            </if>
-                        </else>
-                    </if>
-                </else>
-            </if>
-        </body>
-    </function>
-    <function name="plural" type="String" variable="result">
-        <parameters>
-            <parameter name="count" type="Integer" array="False"/>
-            <parameter name="word" type="String" array="False"/>
-        </parameters>
-        <body>
-            <comment text="'1 point' or '3 points'."/>
-            <declare name="result" type="String" array="False" size=""/>
-            <if expression="count == 1">
-                <then>
-                    <assign variable="result" expression="count &amp; &quot; &quot; &amp; word"/>
-                </then>
-                <else>
-                    <assign variable="result" expression="count &amp; &quot; &quot; &amp; word &amp; &quot;s&quot;"/>
-                </else>
-            </if>
         </body>
     </function>
 </flowgorithm>

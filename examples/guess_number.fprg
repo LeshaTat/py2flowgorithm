@@ -3,17 +3,17 @@
     <attributes>
         <attribute name="name" value="Guess the Number"/>
         <attribute name="authors" value="alekseitatuzov"/>
-        <attribute name="about" value="Guess the Number.&#13;&#10;&#13;&#10;The classic Flowgorithm example as a single Python file: the computer picks a&#13;&#10;number from 1 to 100, the player guesses until it is found."/>
-        <attribute name="saved" value="2026-10-30 01:13:53 PM"/>
-        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswMToxMzo1MyBQTTsw"/>
-        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswMToxMzo1MyBQTTsxOzA="/>
+        <attribute name="about" value="Guess the Number.&#13;&#10;&#13;&#10;The classic Flowgorithm exercise: the computer picks a number from 1 to 100 and the&#13;&#10;player guesses until it is found."/>
+        <attribute name="saved" value="2026-10-30 07:34:21 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozNDoyMSBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozNDoyMSBQTTsxOzA="/>
     </attributes>
     <function name="Main" type="None" variable="">
         <parameters/>
         <body>
             <declare name="maxNumber, secret, tries, guess" type="Integer" array="False" size=""/>
             <assign variable="maxNumber" expression="100"/>
-            <assign variable="secret" expression="1 + Random(maxNumber)"/>
+            <assign variable="secret" expression="Random(maxNumber) + 1"/>
             <assign variable="tries" expression="0"/>
             <output expression="&quot;I am thinking of a number from 1 to &quot; &amp; maxNumber &amp; &quot;.&quot;" newline="True"/>
             <do expression="guess != secret">
@@ -37,24 +37,24 @@
             <output expression="&quot;Correct! You needed &quot; &amp; tries &amp; &quot; tries. &quot; &amp; rate(tries)" newline="True"/>
         </body>
     </function>
-    <function name="rate" type="String" variable="result">
+    <function name="rate" type="String" variable="verdict">
         <parameters>
             <parameter name="tries" type="Integer" array="False"/>
         </parameters>
         <body>
             <comment text="A short verdict for the number of tries needed."/>
-            <declare name="result" type="String" array="False" size=""/>
+            <declare name="verdict" type="String" array="False" size=""/>
             <if expression="tries &lt;= 5">
                 <then>
-                    <assign variable="result" expression="&quot;Excellent!&quot;"/>
+                    <assign variable="verdict" expression="&quot;Excellent!&quot;"/>
                 </then>
                 <else>
                     <if expression="tries &lt;= 10">
                         <then>
-                            <assign variable="result" expression="&quot;Good.&quot;"/>
+                            <assign variable="verdict" expression="&quot;Good.&quot;"/>
                         </then>
                         <else>
-                            <assign variable="result" expression="&quot;Keep practising.&quot;"/>
+                            <assign variable="verdict" expression="&quot;Keep practising.&quot;"/>
                         </else>
                     </if>
                 </else>

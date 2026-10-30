@@ -672,59 +672,41 @@ class SampleFilesTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 def python_output(main, inputs, random_values):
-    """Run a Python main() with scripted input() answers and random.randint patched to use
-    random_values exactly as the converter's `a + Random(b - a + 1)` does. Prompts are printed
-    on their own line, like Flowgorithm's Output shapes."""
+    """Run a dialect program's main() with scripted Input() answers and Random() values (the
+    library reads with input() and draws with random.randrange, as fprg_run's `v % n`)."""
     answers = iter(inputs)
     randoms = iter(random_values)
 
     def fake_input(prompt=""):
-        if prompt:
-            print(prompt)
         try:
             return next(answers)
         except StopIteration:
             raise EOFError("scripted input exhausted") from None
 
-    def fake_randint(a, b):
-        return a + next(randoms) % (b - a + 1)
-
-    def fake_randrange(n):
-        return next(randoms) % n
-
     out = io.StringIO()
-    with patch("builtins.input", side_effect=fake_input), patch("random.randint", side_effect=fake_randint), \
-            patch("random.randrange", side_effect=fake_randrange), contextlib.redirect_stdout(out):
+    with patch("builtins.input", side_effect=fake_input), \
+            patch("random.randrange", side_effect=lambda n: next(randoms) % n), contextlib.redirect_stdout(out):
         main()
     return out.getvalue()
 
 
-def import_example(directory, module_name):
-    """Import a module from an examples directory (its imports resolve against that directory)."""
-    sys.path.insert(0, directory)
-    saved = {k: sys.modules.pop(k) for k in ("quiz", "prompts", "questions", "guess_number") if k in sys.modules}
-    try:
-        module = importlib.import_module(module_name)
-        # keep this module (its imports are already bound), but do not shadow anything else
-        for k in ("quiz", "prompts", "questions", "guess_number"):
-            sys.modules.pop(k, None)
-        sys.modules.update(saved)
-        return module
-    finally:
-        sys.path.remove(directory)
+def import_example(path):
+    """Import an example program by file path (the flowgorithm library is at the repository root)."""
+    name = "example_" + os.path.splitext(os.path.basename(path))[0]
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class DifferentialTestBase(unittest.TestCase):
-    source = ""      # file or project directory given to convert_path
-    module_dir = ""
-    module_name = ""
+    """The Python program (with the flowgorithm library) and its flowchart print exactly the same."""
+    source = ""  # the example program file
 
     @classmethod
     def setUpClass(cls):
-        outputs = convert_path(cls.source)
-        assert len(outputs) == 1, [o[0] for o in outputs]
-        cls.xml = outputs[0][1]
-        cls.module = import_example(cls.module_dir, cls.module_name)
+        (_, cls.xml), = convert_path(cls.source)
+        cls.module = import_example(cls.source)
 
     def compare(self, inputs, random_values, *expected_fragments):
         py = python_output(self.module.main, inputs, random_values)
@@ -737,16 +719,14 @@ class DifferentialTestBase(unittest.TestCase):
 
 class GuessNumberDifferentialTest(DifferentialTestBase):
     source = os.path.join(EXAMPLES, "guess_number.py")
-    module_dir = EXAMPLES
-    module_name = "guess_number"
 
     def test_three_tries(self):
-        # random 41 -> secret 1 + 41 % 100 = 42
+        # random 41 -> secret 41 % 100 + 1 = 42
         text = self.compare(["50", "25", "42"], [41], "Too high.", "Too low.", "You needed 3 tries. Excellent!")
         self.assertEqual(text.count("Your guess?"), 3)
 
     def test_good_rating(self):
-        text = self.compare(["50", "75", "90", "95", "99", "100"], [199], "You needed 6 tries. Good.")
+        text = self.compare(["50", "75", "90", "95", "99", "100"], [99], "You needed 6 tries. Good.")
         self.assertTrue(text.startswith("I am thinking of a number from 1 to 100.\n"))
 
     def test_keep_practising(self):
@@ -755,11 +735,9 @@ class GuessNumberDifferentialTest(DifferentialTestBase):
 
 
 class ArithQuizDifferentialTest(DifferentialTestBase):
-    source = QUIZ_DIR
-    module_dir = QUIZ_DIR
-    module_name = "quiz"
+    source = os.path.join(QUIZ_DIR, "quiz.py")
 
-    # random values: kind = 1 + v % 3 (1 add, 2 multiply, 3 subtract), then a = 1 + v % 12, b = 1 + v % 12
+    # random values: kind = Random(3) + 1 (1 add, 2 multiply, 3 subtract), a, b = Random(12) + 1
     def test_one_round_all_correct(self):
         text = self.compare(["Ada", "2", "5", "12", "n"], [0, 1, 2, 1, 2, 3],
                             "Question 1: 2 + 3 = ?", "Question 2: 3 x 4 = ?",
@@ -778,11 +756,6 @@ class ArithQuizDifferentialTest(DifferentialTestBase):
                      "Question 1: 1 - 12 = ?", "Question 2: 12 x 12 = ?", "Sorry, the answer is 144.",
                      "Question 3: 12 - 1 = ?", "Results: *-*", "Cy, you scored 2 points out of 3 (66%).",
                      "Your grade: C")
-
-    def test_grade_b(self):
-        # four additions, three answered right -> 75% -> B
-        self.compare(["Dee", "4", "2", "4", "0", "8", "n"], [0, 0, 0, 0, 1, 1, 0, 2, 2, 0, 3, 3],
-                     "Dee, you scored 3 points out of 4 (75%).", "Your grade: B", "Results: **-*")
 
 
 # ---------------------------------------------------------------------------

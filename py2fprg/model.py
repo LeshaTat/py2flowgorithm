@@ -12,7 +12,6 @@ from typing import Optional, Union
 # --------------------------------------------------------------------------- #
 INTEGER, REAL, STRING, BOOLEAN = "Integer", "Real", "String", "Boolean"
 VOID = "None"
-SCALARS = (INTEGER, REAL, STRING, BOOLEAN)
 
 
 @dataclass(frozen=True)
@@ -26,8 +25,6 @@ class ArrayT:
 # A resolved Flowgorithm type: a scalar name, an ArrayT, or None when unknown.
 FgType = Union[str, ArrayT, None]
 
-PY_SCALAR = {"int": INTEGER, "float": REAL, "str": STRING, "bool": BOOLEAN}
-PY_NAME_OF = {INTEGER: "int", REAL: "float", STRING: "str", BOOLEAN: "bool"}
 
 RESERVED = {
     "and", "false", "mod", "not", "or", "pi", "true",
@@ -45,17 +42,6 @@ P_OR, P_AND, P_REL, P_CAT, P_ADD, P_MUL, P_POW, P_UNARY, P_ATOM = 1, 2, 3, 4, 5,
 
 def type_name(t: FgType) -> str:
     return "unknown" if t is None else str(t)
-
-
-def join_types(a: FgType, b: FgType) -> FgType:
-    """Least upper bound of two inferred types; raises TypeError on conflict."""
-    if a is None:
-        return b
-    if b is None or a == b:
-        return a
-    if {a, b} == {INTEGER, REAL}:
-        return REAL
-    raise TypeError(f"{type_name(a)} and {type_name(b)}")
 
 
 def is_numeric(t: FgType) -> bool:

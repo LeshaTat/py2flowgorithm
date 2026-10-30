@@ -17,14 +17,12 @@ def count_shapes(xml: str) -> int:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
         prog="py2fprg",
-        description="Convert a Python program (a file or a project directory) into Flowgorithm .fprg flowcharts.",
-        epilog="Test files (test_*.py, *_test.py, tests/) are skipped. The entry module's main() becomes "
-               "Flowgorithm's Main; functions it calls from other modules are included in the same file.")
-    p.add_argument("path", help="a .py file or a project directory")
-    p.add_argument("-o", "--output", help="output .fprg file (single program) or directory")
-    p.add_argument("--entry", help="module name or file that provides main() (when several exist)")
-    p.add_argument("--all-functions", action="store_true",
-                   help="include every function of the involved modules, not only those reachable from main()")
+        description="Turn a Python program written in the Flowgorithm dialect (with the flowgorithm library) "
+                    "into a Flowgorithm .fprg flowchart.",
+        epilog="A folder converts every program file in it (a .py file with `def main():`; test files and "
+               "flowgorithm.py are skipped). The .fprg goes next to each program.")
+    p.add_argument("path", help="a program file, or a folder of program files")
+    p.add_argument("-o", "--output", help="output .fprg file (one program) or folder")
     p.add_argument("--no-comments", action="store_true", help="do not turn # comments and docstrings into Comment shapes")
     p.add_argument("--title", default="", help="program name shown in Flowgorithm (default: docstring or file name)")
     p.add_argument("--author", default="", help="author attribute (default: current user)")
@@ -42,17 +40,13 @@ def main(argv=None) -> int:
 
     warnings: list = []
     try:
-        outputs = convert_path(a.path, entry=a.entry, title=a.title, author=a.author,
-                               comments=not a.no_comments, all_functions=a.all_functions,
+        outputs = convert_path(a.path, title=a.title, author=a.author, comments=not a.no_comments,
                                fileversion=a.fileversion, metadata=not a.no_metadata, warnings=warnings)
     except ConvertError as e:
         if not a.quiet:
             for w in warnings:
                 print(w.format(), file=sys.stderr)
         print(e.format(), file=sys.stderr)
-        return 1
-    except SyntaxError as e:
-        print(f"{e.filename}:{e.lineno}: error: {e.msg}", file=sys.stderr)
         return 1
     if not a.quiet:
         for w in warnings:
