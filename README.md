@@ -1,0 +1,203 @@
+# py2fprg — write Python, get Flowgorithm flowcharts
+
+[Flowgorithm](http://www.flowgorithm.org) is a teaching tool in which programs are
+*drawn* as flowcharts, shape by shape. Its `.fprg` files are plain XML that holds
+exactly the structure of a program (functions, declarations, assignments, I/O,
+if/while/for/do loops, calls), so a flowchart is really an AST with a picture.
+
+`py2fprg` lets you write that program as ordinary Python — in several files, with
+type annotations and unit tests — and generates the `.fprg` file from it:
+
+```
+your_project/                      python3 -m py2fprg your_project/
+├── quiz.py        (main())   ───►   quiz.fprg   ◄── open in Flowgorithm
+├── questions.py   (functions)        (Main + every function main() reaches,
+├── prompts.py     (functions)         gathered from all modules)
+└── tests/         (unit tests, never converted)
+```
+
+Everything is standard-library Python 3.11+; no installation needed.
+
+## Quick start
+
+```bash
+# convert the sample project
+python3 -m py2fprg examples/arith_quiz
+# -> wrote examples/arith_quiz/quiz.fprg (12 functions, 113 shapes)
+
+# validate the result and render a preview (Graphviz `dot` needed for --svg)
+python3 -m py2fprg examples/arith_quiz --lint --svg
+
+# only check whether a project is convertible, write nothing
+python3 -m py2fprg examples/arith_quiz --check
+
+# single file, explicit output, Flowgorithm 4.x file version
+python3 -m py2fprg prog.py -o out/prog.fprg --fileversion 4.2
+```
+
+Run the sample's own unit tests (they are plain Python and are *not* part of the flowchart):
+
+```bash
+cd examples/arith_quiz && python3 -m unittest discover -s tests -t . -v
+```
+
+Run the converter's tests:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+## How a project maps to a flowchart
+
+| Python | Flowgorithm |
+|---|---|
+| the function that `if __name__ == "__main__":` calls (`main()`, `sys.exit(main())`, also one imported from another module), else `def main():`, else the module-level code | the `Main` function |
+| `def f(a: int, xs: list[float]) -> str:` in any module `main()` reaches (directly or through imports) | a function with typed parameters; the return type comes from the annotation or is inferred |
+| `return expr` at the end of a function, or inside an `if` (the statements after the `if` move into its `else`) | assignment to the function's return variable (Flowgorithm returns a variable's value when the function ends; there is no early return) |
+| `x = 5`, `x: float = 0`, `x += 1`, `a, b = b, a` | `Declare` (hoisted to the top of the function, grouped by type) + `Assign`; a variable that later gets a float is Real from the start |
+| `name = input("Prompt")`, `n = int(input("Prompt"))`, `x = float(input())` | `Output "Prompt"` + `Input` into a String / Integer / Real variable |
+| `print(a, "text", end="")`, f-strings, `f"{x:.2f}"` | `Output a & "text"` with newline on/off; `ToFixed(x, 2)` |
+| `if / elif / else` | nested `If` shapes |
+| `while cond:` | `While` |
+| `while True: ... if cond: break` (break last) | `Do` loop with the negated condition |
+| `while True: if cond: break ...` (break first) | `While` with the negated condition |
+| `for i in range(a, b, step)` | `For` from `a` to `b - 1` (inclusive end, `dec` for negative literal steps) |
+| `for x in xs`, `for ch in s`, `for i, x in enumerate(xs)` | `For` over an index variable plus `x = xs[i]` / `Char(s, i)` |
+| `xs = [0] * n`, `xs: list[str] = [""] * n`, `xs = [3, 4]`, `xs[i]`, `len(xs)` | array `Declare` with a size (in place, since the size is a runtime value), element assignment, `Size(xs)` |
+| `f(x)` as a statement | `Call` |
+| `# comments`, docstrings | `Comment` shapes (not the shebang, the coding line or tool pragmas such as `# noqa`); the module docstring becomes the program's *about* text and title |
+| module-level `MAX_TRIES = 3` | copied as a declared+assigned local into every function that uses it (Flowgorithm has no globals) |
+| `math.sqrt/sin/cos/tan/asin/acos/atan/log/log10/fabs/floor/pow/exp`, `math.pi` | `Sqrt`, `Sin`, …, `Ln`, `Log10`, `Abs`, `Int`, `^`, `pi` |
+| `random.randint(a, b)`, `random.randrange(n)` | `a + Random(b - a + 1)`, `Random(n)` |
+| `abs`, `round(x, n)`, `str`, `int(s)`, `float(s)`, `ord`, `chr`, `len(s)`, `s[i]` | `Abs`, `ToReal(ToFixed(x, n))`, `ToString`, `ToInteger`, `ToReal`, `ToCode`, `ToChar`, `Len`, `Char(s, i)` |
+| `**`, `//`, `%`, `and/or/not`, comparisons, `a < b < c`, string `+` | `^`, `Int(a / b)`, `%`, `and/or/not`, `==` …, `a < b and b < c`, `&` (`//` and `%` differ from Python for negative operands: Flowgorithm truncates toward zero; the converter warns when an operand may be negative) |
+| `if n:`, `while s:`, `if not xs:` (Python truthiness) | explicit tests: `n != 0`, `s != ""`, `Size(xs) == 0` |
+| `snake_case`, names that clash with Flowgorithm keywords (`len`, `string`, …), names differing only in case, non-ASCII names | renamed (`snakeCase`, `lenVal`, `n2`, `größe` → `grosse`, `счёт` → `schet`): Flowgorithm identifiers are ASCII, allow no underscore and are case-insensitive |
+| a nested `for` that reuses an enclosing loop's variable (`for _ in ...:` twice) | the inner loop gets its own counter (`vInner`), with a warning |
+
+Test files (`test_*.py`, `*_test.py`, `tests/` and `test/` directories, `conftest.py`) are never
+read. Other `.py` files in the tree that use unsupported Python are skipped with a warning and only
+become an error if the program imports them. Functions that are not reachable from `main()` are
+left out unless you pass `--all-functions`.
+
+### Marks
+
+Type annotations are the main mark: parameters need them (`n: int`, `xs: list[float]`) unless
+every call passes a literal (`show(1)`, `scale(2.5)`) or they have a literal default, and local
+variables need them rarely: a variable, parameter or list that starts out with integers and later
+gets a float is simply Real. An annotation is a declaration, though, as for mypy: an `int`
+variable, parameter, `list[int]` or `-> int` function never takes a float (that is an error,
+because Flowgorithm would silently cut off the fraction).
+
+Names follow Python's scoping: a name assigned anywhere in a function is local to it (it may
+shadow a module constant). Module-level names assigned once, to a literal, are constants and are
+copied into the functions that use them; any other module-level variable cannot be read in a
+function, because Flowgorithm has no globals.
+
+Everything else is a comment directive:
+
+| Directive | Effect |
+|---|---|
+| `# fg: ignore` on a `def` (on any of its lines up to the `:`, a decorator line, or the comment lines above it) | the function is not converted; it may use any Python (test helpers, debugging aids). Calling it from converted code is an error. |
+| `# fg: ignore` above a statement or trailing one of its lines | the statement is left out of the flowchart; for `if`/`for`/`while` (directive on a header line) the whole statement, on an `elif` line only that branch, on an `else:` line the else branch. A directive that has no statement to apply to gets a warning. |
+| `# fg: breakpoint` | inserts a Breakpoint shape (a Python `breakpoint()` call does the same, but would also start the debugger when you run the Python version) |
+| `# fg: name Title`, `# fg: about ...`, `# fg: author ...` | program attributes (defaults: the docstring's first line, the docstring, the current user) |
+| `# fg: comment text` | an explicit Comment shape (plain `#` comments become comments anyway; `--no-comments` drops them) |
+
+### What is not supported (reported as an error with file and line)
+
+Flowgorithm has no exceptions, classes, dictionaries, tuples, string methods, slices,
+nested lists, `break`/`continue` outside the two `while True` patterns above, `return`
+inside loops, `for ... else`, conditional expressions, `in`, `min`/`max`, generators,
+lambdas, global variables, and no string escape sequences (quotes and tabs inside strings
+are emitted through `ToChar(n)`). The `if __name__ == "__main__":` block may only call the
+entry function. Keep the interactive program inside that subset and put everything else in
+`# fg: ignore` functions or in the tests.
+
+### Where Python and Flowgorithm differ anyway
+
+* Output: Flowgorithm prints a whole-number Real without the `.0` (`2`, where Python prints `2.0`)
+  and Booleans as `true`/`false`.
+* `//` and `%` truncate toward zero in Flowgorithm (Python rounds down); the converter warns.
+* A `for` counter read after its loop: Flowgorithm's counter probably ends one step past the last
+  value; the converter warns.
+
+## Validating the output without Flowgorithm
+
+* `fprg_lint.py file.fprg` — a strict validator for `.fprg` files: structure, identifier
+  rules, declared-before-use, a full parser for Flowgorithm's expression grammar with
+  arity checks, plus light type checks. It reports zero errors on 24 real files saved by
+  Flowgorithm 1.0 through 4.2 (see `docs/fprg-format.md` for where they came from).
+  `python3 -m py2fprg PATH --lint` runs it on what was generated; the converter's test
+  suite lints every document it produces.
+* `fprg2svg.py file.fprg -o file.svg` — draws the flowchart with Graphviz (`dot`) so you can
+  look at it without Flowgorithm: Flowgorithm-style shapes, False left / True right, loop-backs,
+  one cluster per function. `--function NAME` renders one function, `-o file.png|pdf|dot` picks
+  the format, `--list-functions` lists them. `--svg` on the converter does the same for its output.
+* `fprg_run.py file.fprg --input 7 --input yes --random 3,5` — a headless interpreter for
+  `.fprg` files (every statement type, functions, arrays, intrinsics, Flowgorithm precedence).
+  Scripted input lines and a fixed `Random()` sequence make runs reproducible. The test suite uses
+  it for **differential testing**: each example program is run in Python with scripted `input()`
+  and a patched `random.randint`, the generated flowchart is run by `fprg_run` with the same
+  inputs, and the console transcripts must be identical. (Number formatting follows Flowgorithm's
+  conventions as far as they are known; see the module docstring.)
+* The third-party browser viewer [FlowgorithmJS](https://andreaval.github.io/FlowgorithmJS/drawLocal.html)
+  also opens the generated files (it does not draw Comment shapes).
+* Flowgorithm itself: Windows installer from flowgorithm.org; on macOS the community port
+  [jostasik/Flowgorithm-macOS](https://github.com/jostasik/Flowgorithm-macOS) (v4.5,
+  `brew tap jostasik/homebrew-tap && brew install --no-quarantine jostasik-flowgorithm`).
+  Opening the generated file there is the final proof; everything above is a stand-in.
+
+## The examples
+
+`examples/guess_number.py` is a single-file program (the classic guessing game: a Do loop,
+`elif`, a helper function, a module constant). `python3 -m py2fprg examples/guess_number.py`
+writes `guess_number.fprg` next to it.
+
+## The sample project
+
+`examples/arith_quiz/` is the intended workflow in miniature:
+
+* `quiz.py` — the interactive program (`main()`, `play_round`, `show_summary`), a
+  `# fg: ignore` test helper, the `if __name__ == "__main__":` guard.
+* `questions.py` — pure functions (question text, answers, percentage, grade, plural) and
+  the shared constants.
+* `prompts.py` — input helpers (`ask_int` with range validation, `ask_yes_no` as a Do loop).
+* `tests/` — unit tests for the pure functions and the prompts (with mocked `input`), and an
+  end-to-end test that runs `main()` with scripted answers and a fixed random sequence.
+
+`python3 -m py2fprg examples/arith_quiz` produces `quiz.fprg` with Main plus 11 functions
+gathered from the three modules; the tests and the ignored helper are not in it.
+
+## Files
+
+| Path | What |
+|---|---|
+| `py2fprg/` | the converter package (`model.py` types & shapes, `layout.py` comments, directives and the `# fg: ignore` pre-pass, `convert.py` statements/expressions, `project.py` modules/imports/call graph, `writer.py` XML, `cli.py`) |
+| `fprg_lint.py` | `.fprg` validator |
+| `fprg2svg.py` | Graphviz renderer |
+| `fprg_run.py` | headless `.fprg` interpreter (used for differential tests) |
+| `docs/fprg-format.md` | the reverse-engineered file-format reference |
+| `examples/arith_quiz/` | sample project |
+| `tests/` | tests for the converter, the linter, the renderer and the interpreter (incl. differential tests) |
+
+## Known issues
+
+`docs/bug-hunt-findings.md` lists the results of an adversarial multi-agent bug hunt: confirmed
+semantic defects with repros and their status, rejected reports, and the triaged leads. All
+confirmed findings are fixed or give a clean error, each with a regression test, except the
+documented `//`/`%` truncation. Still open: a RecursionError for expressions with hundreds of
+`+` operands, and computed negative indexes (`xs[-i]`), which differ from Python when `i <= 0`.
+
+## Notes on the file format
+
+The format is not documented by Flowgorithm's author; `docs/fprg-format.md` was derived
+from real files (fileversion 1.0, 1.7, 2.6, 2.11, 3.0, 4.2), the FlowgorithmJS parser and the
+official language documentation. The statement set has been stable since version 2;
+files written by Flowgorithm 4.x only differ in the `fileversion` attribute, so py2fprg
+writes `3.0` by default (readable by 3.x and 4.x) and `--fileversion 4.2` is available.
+
+Prior art: [flowo](https://pypi.org/project/flowo/) (a Python DSL that writes `.fprg`, i.e.
+you call `flow.declare(...)`/`flow.if_(...)` instead of writing Python) and
+[fgscript](https://github.com/mandriota/fgscript) (a macro language for the format).
+py2fprg differs in taking real, runnable, testable Python as the source.

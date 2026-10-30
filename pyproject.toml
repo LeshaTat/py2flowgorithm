@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py2fprg"
+version = "0.1.0"
+description = "Write Python, get Flowgorithm (.fprg) flowcharts"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+py2fprg = "py2fprg.cli:main"
+fprg-lint = "fprg_lint:main"
+fprg2svg = "fprg2svg:main"
+fprg-run = "fprg_run:main"
+
+[tool.setuptools]
+packages = ["py2fprg"]
+py-modules = ["fprg_lint", "fprg2svg", "fprg_run"]
