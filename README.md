@@ -147,7 +147,7 @@ do the same thing:
   classes, `import`s other than the library, and no code at the top level other than constants.
 
 What can still differ (Flowgorithm's run-time rules are not all documented, so the converter warns
-where it can):
+where it can; the probe flowcharts in `docs/probe/` settle these with one run in Flowgorithm):
 
 * `%` with a negative number: Python's `-7 % 2` is `1`, Flowgorithm's is `-1`.
 * `and` / `or`: Python skips the right side when the left side decides; Flowgorithm may evaluate
@@ -210,4 +210,6 @@ The `.fprg` files next to them are the converter's output.
 | `py2fprg/` | the converter (`program.py` the file structure, `convert.py` statements and expressions, `layout.py` comments and `# fg:` directives, `model.py` the shapes, `writer.py` the XML, `cli.py`) |
 | `fprg_lint.py`, `fprg2svg.py`, `fprg_run.py` | validator, renderer, interpreter for `.fprg` files |
 | `docs/fprg-format.md` | the reverse-engineered file format |
+| `docs/probe/` | flowcharts that show Flowgorithm's undocumented run-time rules when run (`make_probe.py` builds them) |
+| `examples/` | example programs with their flowcharts |
 | `tests/` | tests for the library, the converter and the tools (`python3 -m unittest discover -s tests`) |

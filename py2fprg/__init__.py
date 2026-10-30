@@ -18,7 +18,7 @@ from .model import ConvertError, Program, Warning_
 from .program import ProgramBuilder
 from .writer import write_program
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["convert_source", "convert_file", "convert_path", "program_files", "ConvertError", "ProgramBuilder",
            "write_program", "Program", "Warning_", "__version__"]
 
