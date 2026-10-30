@@ -41,8 +41,8 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   upper-case exponent marker (``1E+16``) as .NET prints it. Flowgorithm builds on the
   classic .NET Framework may show at most 15 significant digits instead
   (``12.5663706143592``), so differential tests should not depend on the last digits
-  of a non-terminating Real. Whole Reals of magnitude 1e15 and above keep the
-  round-trip form. Booleans print as ``true``/``false``.
+  of a non-terminating Real. From magnitude 1e15 on a Real is written with an exponent
+  (``1E+15``, ``-1.5E+15``), as .NET does. Booleans print as ``true``/``false``.
 * ``&`` and ``ToString`` use that same formatting.
 * ``/`` always yields a Real. ``%``/``mod`` is a remainder with the sign of the
   dividend (as in C#/VB.NET), also for Reals. ``^`` yields an Integer when both operands
@@ -187,7 +187,13 @@ def format_value(value) -> str:
             return "Infinity" if value > 0 else "-Infinity"
         if value.is_integer() and abs(value) < 1e15:
             return str(int(value))
-        return repr(value).replace("e", "E")
+        text = repr(value)
+        if "e" not in text and abs(value) >= 1e15:  # .NET uses an exponent from 1E+15 on, Python from 1e+16
+            sign, digits = ("-", text[1:]) if text[0] == "-" else ("", text)
+            whole, _, fraction = digits.partition(".")
+            figures = (whole + fraction).rstrip("0")
+            text = f"{sign}{figures[0]}{'.' + figures[1:] if len(figures) > 1 else ''}e+{len(whole) - 1:02d}"
+        return text.replace("e", "E")
     if t is str:
         return value
     if isinstance(value, FArray):

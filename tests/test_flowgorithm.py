@@ -38,6 +38,8 @@ class OutputTest(unittest.TestCase):
     def test_numbers_and_booleans_print_like_flowgorithm(self):
         self.assertEqual(output(2.0, " ", 2.5, " ", -0.0, " ", True, " ", False), "2 2.5 0 true false\n")
         self.assertEqual(output(1e16), "1E+16\n")
+        # .NET writes an exponent from 1E+15 on (Python's repr only from 1e+16)
+        self.assertEqual(output(1e15, " ", -1.5e15, " ", 999999999999999.0), "1E+15 -1.5E+15 999999999999999\n")
         self.assertEqual(output(0.1 + 0.2), "0.30000000000000004\n")
 
     def test_arrays_cannot_be_output(self):
@@ -112,7 +114,7 @@ class SameAsInterpreterTest(unittest.TestCase):
                 self.assertEqual(ours, fprg_run.evaluate(case))
 
     def test_formatting(self):
-        for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, 1e16, 123456789.0, True, "x"):
+        for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, -2.5e15, 1234567890123456.8, 1e16, 123456789.0, True, "x"):
             with self.subTest(value=value):
                 self.assertEqual(output(value), fprg_run.format_value(value) + "\n")
 

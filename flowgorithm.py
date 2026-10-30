@@ -51,7 +51,13 @@ def _text(value) -> str:
             return "Infinity" if value > 0 else "-Infinity"
         if value.is_integer() and abs(value) < 1e15:
             return str(int(value))
-        return repr(value).replace("e", "E")
+        text = repr(value)
+        if "e" not in text and abs(value) >= 1e15:  # .NET uses an exponent from 1E+15 on, Python from 1e+16
+            sign, digits = ("-", text[1:]) if text[0] == "-" else ("", text)
+            whole, _, fraction = digits.partition(".")
+            figures = (whole + fraction).rstrip("0")
+            text = f"{sign}{figures[0]}{'.' + figures[1:] if len(figures) > 1 else ''}e+{len(whole) - 1:02d}"
+        return text.replace("e", "E")
     if t is str:
         return value
     if isinstance(value, list):

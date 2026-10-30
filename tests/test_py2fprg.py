@@ -357,6 +357,20 @@ class StatementTest(unittest.TestCase):
         self.assertIn('<comment text="end of the positive branch"/>\n</then>', body)
         self.assertNotIn("debug", body)
 
+    def test_warnings_where_flowgorithm_may_differ(self):
+        def warnings_of(body: str, functions: str = "") -> list:
+            found: list = []
+            convert_source(program(body, functions=functions), "prog", warnings=found, metadata=False)
+            return [w.msg for w in found]
+
+        self.assertIn("the index in xs[i] must work then too",
+                      warnings_of("xs = [0] * 3\ni = 0\nwhile i < Size(xs) and xs[i] != 5:\n    i = i + 1")[0])
+        self.assertIn("the division in 10 / n", warnings_of("n = 0\nif n == 0 or 10 / n > 2:\n    pass")[0])
+        self.assertIn("ask()", warnings_of("ok = False\nif ok and ask():\n    pass",
+                                           "def ask() -> bool:\n    answer = Input(str)\n    return answer == \"y\"\n")[0])
+        self.assertIn("Python orders Strings by character code", warnings_of('s = "a"\nif s < "B":\n    pass')[0])
+        self.assertEqual(warnings_of('i = 0\nok = True\ns = "a"\nif i < 3 and ok or s == "b":\n    pass'), [])
+
 
 class ExpressionTest(unittest.TestCase):
     def expr(self, text: str, setup: str = 'a = 1\nb = 2\nc = 3\ns = "x"\nx = 1.5\nok = True\nxs = [0] * 3') -> str:

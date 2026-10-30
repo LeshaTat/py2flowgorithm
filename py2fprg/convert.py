@@ -176,6 +176,22 @@ def real_var(name: str) -> str:
     return f"make {name} a Real from the start ({name} = 0.0, or {name}: float = 0)"
 
 
+FALLIBLE = {"Char", "ToCode", "ToInteger", "ToReal", "Sqrt", "Ln", "Log", "Log10", "Arcsin", "Arccos"}
+
+
+def can_fail(node: ast.AST, functions) -> str:
+    """What in an expression can stop the program or do Input/Output: an index, a division, a call."""
+    for n in ast.walk(node):
+        if isinstance(n, ast.Subscript):
+            return f"the index in {ast.unparse(n)}"
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Div, ast.Mod)):
+            return f"the division in {ast.unparse(n)}"
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and (n.func.id in functions
+                                                                         or n.func.id in FALLIBLE):
+            return ast.unparse(n)
+    return ""
+
+
 def is_do(s: ast.stmt) -> bool:
     return isinstance(s, ast.While) and isinstance(s.test, ast.Constant) and s.test.value is True
 
@@ -900,6 +916,13 @@ class FunctionConverter:
                 raise self.err(f"`{word}` needs true or false on both sides, not {type_name(e.type)}", v,
                                "compare explicitly, e.g. `n != 0`")
             parts.append(paren(e, prec))
+        for v in n.values[1:]:
+            what = can_fail(v, self.b.functions)
+            if what:
+                self.warn(f"Python skips the right side of `{word}` when the left side is "
+                          f"{'false' if word == 'and' else 'true'}, Flowgorithm may evaluate it anyway: {what} "
+                          "must work then too, or go into a nested if", v)
+                break
         return Ex(f" {word} ".join(parts), prec, BOOLEAN)
 
     def e_Compare(self, n: ast.Compare) -> Ex:
@@ -915,6 +938,9 @@ class FunctionConverter:
             raise self.err(f"cannot compare {type_name(a.type)} with {type_name(b.type)}", n)
         if a.type == BOOLEAN and op not in (ast.Eq, ast.NotEq):
             raise self.err("true and false are compared with == and != only", n)
+        if a.type == STRING and op not in (ast.Eq, ast.NotEq):
+            self.warn('Python orders Strings by character code ("B" < "a"); Flowgorithm may order upper and lower '
+                      "case, digits and punctuation differently", n)
         return Ex(f"{paren(a, P_REL)} {COMPARE_OP[op]} {paren(b, P_REL, 'right')}", P_REL, BOOLEAN)
 
     def e_Subscript(self, n: ast.Subscript) -> Ex:

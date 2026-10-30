@@ -146,8 +146,22 @@ do the same thing:
   `print`/`input`/`len`/`int`/`str` (use the library), no methods, slices, tuples, dictionaries,
   classes, `import`s other than the library, and no code at the top level other than constants.
 
-One difference remains: for negative numbers `%` gives different results (Python `-7 % 2` is `1`,
-Flowgorithm's is `-1`).
+What can still differ (Flowgorithm's run-time rules are not all documented, so the converter warns
+where it can):
+
+* `%` with a negative number: Python's `-7 % 2` is `1`, Flowgorithm's is `-1`.
+* `and` / `or`: Python skips the right side when the left side decides; Flowgorithm may evaluate
+  both. `while i < Size(xs) and xs[i] != x` is warned about: the index must also work when
+  `i < Size(xs)` is false, so test it in a nested if (or use a found flag, as in
+  `examples/exercises/search.py`).
+* Ordering Strings with `<` / `>` (warned about): Python compares character codes (`"B" < "a"`),
+  Flowgorithm may order upper and lower case differently. `==` and `!=` are the same.
+* Reals that do not end, like `7 / 3`: the library prints all the digits Python has
+  (`2.3333333333333335`), an older Flowgorithm may print fewer. Show such results with
+  `ToFixed(x, 2)`. `ToFixed` of a value exactly halfway (`ToFixed(2.25, 1)`) may round the other
+  way.
+* Very large whole numbers: Python's Integers have no limit, Flowgorithm's have a fixed size
+  (keep them below 2 147 483 647, or use a Real).
 
 ## Testing a program
 
