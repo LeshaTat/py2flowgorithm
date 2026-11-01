@@ -137,10 +137,10 @@ class ExpressionTest(unittest.TestCase):
         self.check("2 + 3.0", 5.0)
         self.check("2 ^ 10", 1024)
         self.check("2.0 ^ 2", 4.0)
-        self.check("7 % -3", 1)              # remainder takes the sign of the dividend (a guess)
         self.check("7.5 % 2", 1.5)
-        with self.assertRaises(FprgRuntimeError):  # checked in Flowgorithm: '-7' is not valid for % mod
-            evaluate("-7 % 3")
+        for text in ("-7 % 3", "7 % -3"):        # checked in Flowgorithm: '-7' is not valid for % mod
+            with self.assertRaises(FprgRuntimeError, msg=text):
+                evaluate(text)
         self.check("1e3 + 1", 1001.0)
 
     def test_concatenation_formats_like_output(self):

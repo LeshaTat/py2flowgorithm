@@ -122,9 +122,10 @@ do the same thing:
 Flowgorithm's run-time rules are not all documented, so the converter warns where it can; the
 probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm:
 
-* `%` with a negative left side: Flowgorithm stops the program ("Illegal Value: The value '-7'
-  is not valid for the function % mod"), Python gives a result (`-7 % 2` is `1`). Keep the left
-  side of `%` at 0 or more (the converter rejects a negative number written out).
+* `%` with a negative number on either side: Flowgorithm stops the program ("Illegal Value: The
+  value '-7' is not valid for the function % mod"), Python gives a result (`-7 % 2` is `1`,
+  `7 % -2` is `-1`). Keep both sides of `%` at 0 or more (the converter rejects a negative number
+  written out).
 * `and` / `or`: Python skips the right side when the left side decides; Flowgorithm may evaluate
   both. `while i < Size(xs) and xs[i] != x` is warned about: the index must also work when
   `i < Size(xs)` is false, so test it in a nested if (or use a found flag, as in

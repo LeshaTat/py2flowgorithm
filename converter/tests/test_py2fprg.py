@@ -451,7 +451,7 @@ class ExpressionTest(unittest.TestCase):
             "n = ToInteger(2.5)": "Int(x) cuts off the fraction", "n = ToReal(a)": "goes into a Real variable",
             "n = ToString(ok)": "ToString() turns a number into text", "n = ToString(s)": "needs a number",
             "s = ToFixed(a, 0)": "at least 1 digit after the point",
-            "n = -7 % a": "stops on % with a negative left side",
+            "n = -7 % a": "stops on % with a negative number", "n = a % -2": "stops on % with a negative number",
         }
         setup = 'a = 1\nb = 2\ns = "x"\nok = True\nxs = [0] * 3\n'
         for code, msg in cases.items():

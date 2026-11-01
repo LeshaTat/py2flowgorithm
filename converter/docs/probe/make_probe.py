@@ -44,8 +44,8 @@ def checks() -> list:
         # B: ToFixed on values exactly halfway, and on values just below halfway in binary
         show("B1", "ToFixed(2.25, 1)"), show("B2", "ToFixed(-2.25, 1)"), show("B3", "ToFixed(0.125, 2)"),
         show("B4", "ToFixed(2.675, 2)"), show("B5", "ToFixed(1.005, 2)"),
-        # C: % (C1, -7 % 2, stops Flowgorithm)
-        show("C2", "7 % -2"), show("C3", "7.5 % 2"),
+        # C: % (C1, -7 % 2, and C2, 7 % -2, stop Flowgorithm)
+        show("C3", "7.5 % 2"),
         # D: ^
         show("D1", "2 ^ 3 ^ 2"), show("D2", "-2 ^ 2"), show("D3", "2 ^ -1"),
         # E: ordering Strings

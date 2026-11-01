@@ -18,7 +18,7 @@ Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
 | A4, A5 | when an exponent is used | from 1E+15 on (`1E+15`) | later or never |
 | B1–B3 | `ToFixed` of a value exactly halfway | to even (`2.2`, `-2.2`, `0.12`) | away from zero (`2.3`, `-2.3`, `0.13`) |
 | B4, B5 | `ToFixed` of 2.675 and 1.005 (just below halfway in binary) | `2.67`, `1.00` | `2.68`, `1.01` (rounds the decimal text) |
-| C2, C3 | `7 % -2`, `7.5 % 2` | `1`, `1.5` | `-1`, or an error |
+| C3 | `7.5 % 2` | `1.5` | an error (Integers only) |
 | D1 | `2 ^ 3 ^ 2` | left to right (`64`) | right to left (`512`) |
 | D2, D3 | `-2 ^ 2`, `2 ^ -1` | `4` (the sign binds first, as documented), `0.5` | `-4` |
 | E1–E4 | ordering Strings | by character code (`true false true false`) | dictionary order (`false true ...`), or an error |
@@ -44,3 +44,6 @@ under Wine Staging 11.21 with Wine Mono 11.3 on macOS — so on Mono, not Micros
   function % mod." `fprg_run` now stops too, and the converter rejects a negative left side
   written out; Python's own `%` cannot be changed, so the converter's README warns about
   variables. C1 is left out.
+* C2 was `7 % -2`: it stops the program the same way ("The value '-2' is not valid for the
+  function % mod"), so `%` needs 0 or more on both sides; `fprg_run`, the converter and its README
+  follow. C2 is left out.
