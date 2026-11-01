@@ -11,9 +11,11 @@ The package also has three tools for `.fprg` files: a validator, a renderer and 
 
 ## Getting started
 
-`pip install -e converter` from the repository root installs the `py2fprg` command, and
-`fprg-lint`, `fprg2svg` and `fprg-run`. Without installing, run it as
-`PYTHONPATH=converter python3 -m py2fprg`.
+`python3 install.py` at the repository root installs the converter and the library for your
+Python (see the [repository's README](../README.md)): the commands `py2fprg`, `fprg-lint`,
+`fprg2svg` and `fprg-run` then work in any folder, as does `python3 -m py2fprg`. In a virtual
+environment, `pip install -e converter` works too; without installing, run
+`PYTHONPATH=converter/src python3 -m py2fprg`.
 
 * `py2fprg program.py` writes `program.fprg` next to it; `py2fprg exercises/` converts every
   program file in a folder (a `.py` file with `def main():`; test files and `flowgorithm.py` are
@@ -154,8 +156,8 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these with one run in Flo
 
 | Path | What |
 |---|---|
-| `py2fprg/` | the converter (`program.py` the file structure, `convert.py` statements and expressions, `layout.py` comments and `# fg:` directives, `model.py` the shapes, `writer.py` the XML, `cli.py`) |
-| `fprg_lint.py`, `fprg2svg.py`, `fprg_run.py` | validator, renderer, interpreter for `.fprg` files |
+| `src/py2fprg/` | the converter (`program.py` the file structure, `convert.py` statements and expressions, `layout.py` comments and `# fg:` directives, `model.py` the shapes, `writer.py` the XML, `cli.py`) |
+| `src/fprg_lint.py`, `src/fprg2svg.py`, `src/fprg_run.py` | validator, renderer, interpreter for `.fprg` files |
 | `docs/fprg-format.md` | the reverse-engineered file format |
 | `docs/probe/` | flowcharts that show Flowgorithm's undocumented run-time rules when run (`make_probe.py` builds them) |
-| `tests/` | tests for the converter and the tools, and that the library agrees with `fprg_run` (`python3 -m unittest discover -s converter/tests` from the repository root) |
+| `tests/` | tests for the converter and the tools, and that the library agrees with `fprg_run` (`python3 -m unittest discover -s tests` in this folder) |

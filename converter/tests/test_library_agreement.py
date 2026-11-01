@@ -1,7 +1,7 @@
-"""The flowgorithm library and fprg_run agree (run from the repository root:
-python3 -m unittest discover -s converter/tests).
+"""The flowgorithm library and fprg_run agree (run in the converter's folder:
+python3 -m unittest discover -s tests).
 
-Student programs run with the library (library/flowgorithm.py); their flowcharts are checked
+Student programs run with the library (library/src/flowgorithm.py); their flowcharts are checked
 with fprg_run. Both model Flowgorithm's run-time rules, so they must give the same values and
 print the same text, or the Python-against-flowchart comparisons would prove nothing.
 """
@@ -12,8 +12,10 @@ import sys
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-sys.path.insert(1, os.path.join(os.path.dirname(ROOT), "library"))  # the flowgorithm library
+sys.path.insert(0, os.path.join(ROOT, "src"))  # the converter under test
+LIBRARY = os.path.join(os.path.dirname(ROOT), "library", "src")  # the flowgorithm library next to this project
+if os.path.isdir(LIBRARY):  # (a converter copied out of the repository uses the installed library)
+    sys.path.insert(1, LIBRARY)
 
 import flowgorithm as fg  # noqa: E402
 import fprg_run  # noqa: E402

@@ -1,4 +1,4 @@
-"""Unit tests for quiz.py (run: cd examples/arith_quiz && python3 -m unittest -v).
+"""Unit tests for quiz.py (run in this folder: python3 -m unittest -v).
 
 The tests are ordinary Python: they call the program's functions directly and play whole
 games with scripted answers (Input() reads with input(), Random() uses random.randrange).
@@ -6,16 +6,10 @@ py2fprg never converts this file.
 """
 import contextlib
 import io
-import os
-import sys
 import unittest
 from unittest.mock import patch
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(1, os.path.join(os.path.dirname(os.path.dirname(HERE)), "library"))  # the flowgorithm library
-
-import quiz  # noqa: E402
+import quiz
 
 
 def play(answers, randoms) -> str:

@@ -5,7 +5,7 @@ Windows. The flowgorithm library, `fprg_run.py` and the converter's warnings res
 the rules below. These four flowcharts settle them: open each one in Flowgorithm, run it, and
 compare the console with [`expected.txt`](expected.txt), which is what the library and
 `fprg_run.py` assume. A line that differs shows which guess to change (in
-`library/flowgorithm.py` and `converter/fprg_run.py` together, so they keep agreeing).
+`library/src/flowgorithm.py` and `converter/src/fprg_run.py` together, so they keep agreeing).
 
 * `probe.fprg` — nothing in it should stop.
 * `probe-array-start.fprg`, `probe-redeclare.fprg`, `probe-overflow.fprg` — each may stop with an

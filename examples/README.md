@@ -1,7 +1,8 @@
-# Examples
+# Flowgorithm exercises in Python
 
-Programs written in Python the Flowgorithm way, with the [`flowgorithm` library](../library), each
-next to the flowchart the [converter](../converter) makes of it (`.fprg`, opens in Flowgorithm).
+Programs written in Python the Flowgorithm way, with the
+[`flowgorithm` library](../library), each next to the flowchart the [converter](../converter)
+makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own project.
 
 * `guess_number.py` — the classic guessing game: a Do loop, `elif`, a function, a constant.
 * `arith_quiz/` — an arithmetic quiz with input validation, arrays, Random and eleven small
@@ -15,31 +16,30 @@ next to the flowchart the [converter](../converter) makes of it (`.fprg`, opens 
   stops at -1), `caesar` (`ToCode`/`ToChar` arithmetic), `words` (taking a String apart), `stats`
   (an array sized by the input, an array parameter, a checked input in a Do loop), `menu` (a menu
   in a Do loop, functions without a result), `fib` (a running sequence, and recursion).
+* `tests/test_examples.py` — plays every program in Python and as its flowchart.
 
-## Running them
+## Your own project
 
-With the library and the converter installed (see the [repository's README](../README.md)):
-
-```bash
-python examples/exercises/fizzbuzz.py      # run a program
-py2fprg examples/exercises                 # make the flowcharts of a whole folder
-```
-
-Without installing anything, from the repository root:
+The library and the converter are installed once, from the flowgorithm repository
+(`python3 install.py` there; see its README). Then:
 
 ```bash
-PYTHONPATH=library python3 examples/exercises/fizzbuzz.py
-PYTHONPATH=converter python3 -m py2fprg examples/exercises
+cp -r examples ~/my-flowgorithm      # in the flowgorithm repository
+cd ~/my-flowgorithm
+git init
 ```
 
-## Tests
-
-`tests/test_examples.py` plays every program in Python and as its flowchart (with the converter's
-interpreter) on the same answers and Random() values: the console text must be identical, and
-each saved `.fprg` must be what the converter makes today. A new program gets its runs in the
-`RUNS` table there. From the repository root:
+Write a program like the ones here (the dialect is described in the
+[converter's README](../converter/README.md)), and work with it:
 
 ```bash
-python3 -m unittest discover -s examples/tests
-python3 -m unittest discover -s examples/arith_quiz
+python3 exercises/fizzbuzz.py              # run it
+py2fprg exercises/fizzbuzz.py              # make its flowchart (py2fprg exercises: the whole folder)
+python3 -m unittest discover -s tests      # play every program in Python and as a flowchart
 ```
+
+Every program gets its runs in the `RUNS` table of `tests/test_examples.py`: the answers it is
+given, the values `Random()` returns, and texts the console must show. The test then requires
+that the Python program and its flowchart print exactly the same, and that each saved `.fprg` is
+what the converter makes of the program today (run `py2fprg` again after a change). Unit tests of
+a program's functions go next to it, as in `arith_quiz/test_quiz.py`.

@@ -16,7 +16,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import fprg_run  # noqa: E402
 from fprg_run import (FArray, FprgRuntimeError, FprgSyntaxError, Machine, evaluate,  # noqa: E402
@@ -665,7 +665,7 @@ class SampleFilesTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class CliTest(unittest.TestCase):
-    SCRIPT = os.path.join(ROOT, "fprg_run.py")
+    SCRIPT = os.path.join(ROOT, "src", "fprg_run.py")
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

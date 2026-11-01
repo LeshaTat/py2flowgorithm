@@ -1,5 +1,5 @@
-"""Tests for the py2fprg converter (run from the repository root:
-python3 -m unittest discover -s converter/tests).
+"""Tests for the py2fprg converter (run in the converter's folder:
+python3 -m unittest discover -s tests).
 
 Programs are written in the Flowgorithm dialect: one file, `from flowgorithm import *`, typed
 functions, main(). Every converted document is linted, and the differential tests run the Python
@@ -18,8 +18,10 @@ import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-sys.path.insert(1, os.path.join(os.path.dirname(ROOT), "library"))  # the programs import the flowgorithm library
+sys.path.insert(0, os.path.join(ROOT, "src"))  # the converter under test
+LIBRARY = os.path.join(os.path.dirname(ROOT), "library", "src")  # the flowgorithm library next to this project
+if os.path.isdir(LIBRARY):  # (a converter copied out of the repository uses the installed library)
+    sys.path.insert(1, LIBRARY)
 
 import fprg_lint  # noqa: E402
 import fprg_run  # noqa: E402

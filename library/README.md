@@ -6,8 +6,10 @@ behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the
 [examples](../examples) show whole programs.
 
-It is one file with nothing outside the standard library: install it with `pip install -e library`
-(from the repository root), or copy `flowgorithm.py` next to the program.
+It is one file with nothing outside the standard library (`src/flowgorithm.py`). Install it
+together with the converter by running `python3 install.py` at the repository root (see the
+[repository's README](../README.md)); in a virtual environment, `pip install -e library` works
+too; or just copy `src/flowgorithm.py` next to the program.
 
 ```python
 from flowgorithm import *
@@ -64,6 +66,6 @@ whole runs with scripted answers by patching `builtins.input` (what `Input` read
 
 ## Tests
 
-`python3 -m unittest discover -s library/tests` from the repository root. That the library gives
+`python3 -m unittest discover -s tests` in this folder. That the library gives
 exactly what the converter's interpreter gives is tested in
 `converter/tests/test_library_agreement.py`.

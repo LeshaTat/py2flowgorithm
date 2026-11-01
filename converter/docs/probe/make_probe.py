@@ -1,5 +1,5 @@
 """Build the probe flowcharts: small programs that show, when run in real Flowgorithm, the run-time
-rules py2fprg, the flowgorithm library (library/flowgorithm.py) and fprg_run had to guess (see
+rules py2fprg, the flowgorithm library (library/src/flowgorithm.py) and fprg_run had to guess (see
 "What can still differ" in converter/README.md and the "Semantics that had to be guessed" list in
 fprg_run.py).
 
@@ -15,7 +15,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import fprg_run  # noqa: E402
 from py2fprg.model import (Assign, BOOLEAN, Declare, For, Function, INTEGER, If, Output, Param,  # noqa: E402

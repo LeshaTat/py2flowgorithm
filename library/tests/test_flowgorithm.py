@@ -1,5 +1,5 @@
-"""Tests for the flowgorithm library (run from the repository root:
-python3 -m unittest discover -s library/tests).
+"""Tests for the flowgorithm library (run in the library's folder:
+python3 -m unittest discover -s tests).
 
 The library is what student programs run with, so it must behave like Flowgorithm: the same
 console text, the same conversions, the same run-time errors. That it gives exactly what the
@@ -12,7 +12,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import flowgorithm as fg  # noqa: E402
 

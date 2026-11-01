@@ -18,5 +18,6 @@ fprg2svg = "fprg2svg:main"
 fprg-run = "fprg_run:main"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 packages = ["py2fprg"]
 py-modules = ["fprg_lint", "fprg2svg", "fprg_run"]

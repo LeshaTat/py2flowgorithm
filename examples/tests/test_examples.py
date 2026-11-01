@@ -1,5 +1,5 @@
-"""Every example program, played in Python and as its flowchart (run from the repository root:
-python3 -m unittest discover -s examples/tests).
+"""Every example program, played in Python and as its flowchart (run in this project's folder:
+python3 -m unittest discover -s tests).
 
 Each program runs in Python (with the flowgorithm library) and as its flowchart (with the
 converter's interpreter, fprg_run) on the same answers and Random() values: the console text must
@@ -14,12 +14,19 @@ import unittest
 from unittest.mock import patch
 
 EXAMPLES = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPOSITORY = os.path.dirname(EXAMPLES)
-sys.path[:0] = [os.path.join(REPOSITORY, "converter"), os.path.join(REPOSITORY, "library")]
-
-import fprg_lint  # noqa: E402
-import fprg_run  # noqa: E402
-from py2fprg import convert_file, is_program_file  # noqa: E402
+# The converter and the library: the projects next to this one while it is in the flowgorithm
+# repository; in a copy of it, the installed ones (python3 install.py in the repository).
+for project in ("converter", "library"):
+    source = os.path.join(os.path.dirname(EXAMPLES), project, "src")
+    if os.path.isdir(source):
+        sys.path.insert(0, source)
+try:
+    import flowgorithm  # noqa: E402,F401  (the programs import it)
+    import fprg_lint  # noqa: E402
+    import fprg_run  # noqa: E402
+    from py2fprg import convert_file, is_program_file  # noqa: E402
+except ImportError as e:
+    raise ImportError(f"{e.name} is not installed: run `python3 install.py` in the flowgorithm repository") from None
 
 
 def play(*answers: str, randoms=(), shows=()):
@@ -96,10 +103,11 @@ def without_attributes(xml: str) -> str:
 
 class ExamplesTest(unittest.TestCase):
     def test_every_program_is_played(self):
-        programs = sorted(os.path.relpath(os.path.join(folder, f), EXAMPLES).replace(os.sep, "/")
-                          for folder, _, files in os.walk(EXAMPLES) for f in files
-                          if is_program_file(os.path.join(folder, f)))
-        self.assertEqual(programs, sorted(RUNS))
+        programs = {os.path.relpath(os.path.join(folder, f), EXAMPLES).replace(os.sep, "/")
+                    for folder, _, files in os.walk(EXAMPLES) for f in files
+                    if is_program_file(os.path.join(folder, f))}
+        self.assertEqual(sorted(programs - set(RUNS)), [], "give these programs their runs in RUNS")
+        self.assertEqual(sorted(set(RUNS) - programs), [], "these programs in RUNS do not exist")
 
     def test_python_and_flowchart_print_the_same(self):
         for name, runs in RUNS.items():
@@ -120,7 +128,7 @@ class ExamplesTest(unittest.TestCase):
                     saved = fh.read()
                 made = convert_file(os.path.join(EXAMPLES, name))
                 self.assertEqual(without_attributes(saved), without_attributes(made),
-                                 f"regenerate it: py2fprg examples/{name}")
+                                 f"regenerate it: py2fprg {name}")
 
 
 if __name__ == "__main__":
