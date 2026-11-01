@@ -29,7 +29,7 @@ DEFAULT_FILL = {INTEGER: 0, REAL: 0.0, STRING: "", BOOLEAN: False}
 OPERATORS = {ast.Add: ("+", P_ADD), ast.Sub: ("-", P_ADD), ast.Mult: ("*", P_MUL), ast.Div: ("/", P_MUL),
              ast.Mod: ("%", P_MUL), ast.Pow: ("^", P_POW)}
 
-NUM, ANY, ARRAY = "number", "any", "array"
+NUM, ANY, ARRAY, NUMBOOL = "number", "any", "array", "number or Boolean"
 # The library's intrinsic functions: argument kinds, result type (None: the type of the argument).
 LIBRARY = {
     "Abs": ([NUM], None), "Sgn": ([NUM], INTEGER), "Int": ([NUM], INTEGER), "Sqrt": ([NUM], REAL),
@@ -37,7 +37,7 @@ LIBRARY = {
     "Arccos": ([NUM], REAL), "Arctan": ([NUM], REAL), "Ln": ([NUM], REAL), "Log": ([NUM], REAL),
     "Log10": ([NUM], REAL), "Len": ([STRING], INTEGER), "Char": ([STRING, INTEGER], STRING),
     "ToChar": ([INTEGER], STRING), "ToCode": ([STRING], INTEGER), "ToFixed": ([NUM, INTEGER], STRING),
-    "ToInteger": ([STRING], INTEGER), "ToReal": ([STRING], REAL), "ToString": ([NUM], STRING),
+    "ToInteger": ([STRING], INTEGER), "ToReal": ([STRING], REAL), "ToString": ([NUMBOOL], STRING),
     "Random": ([INTEGER], INTEGER), "Size": ([ARRAY], INTEGER),
 }
 CUT = "cut the fraction off with Int(...)"
@@ -54,7 +54,7 @@ STATEMENT_HINTS = {
 ARG_HINTS = {
     "ToInteger": "ToInteger() reads a whole number from text; Int(x) cuts off the fraction of a number",
     "ToReal": "ToReal() reads a number from text; a number goes into a Real variable as it is (x: float = n)",
-    "ToString": "ToString() turns a number into text; Output(...) shows Booleans and Strings as they are",
+    "ToString": "ToString() turns a number or true/false into text; a String is text already",
 }
 # What to write instead of Python that is not part of the dialect.
 INSTEAD = {
@@ -963,7 +963,7 @@ class FunctionConverter:
             what = can_fail(v, self.b.functions)
             if what:
                 self.warn(f"Python skips the right side of `{word}` when the left side is "
-                          f"{'false' if word == 'and' else 'true'}, Flowgorithm may evaluate it anyway: {what} "
+                          f"{'false' if word == 'and' else 'true'}, Flowgorithm evaluates it anyway: {what} "
                           "must work then too, or go into a nested if", v)
                 return
 
@@ -1025,10 +1025,11 @@ class FunctionConverter:
         for a, kind in zip(n.args, kinds):
             e = self.expr(a)
             bad = (kind == NUM and not is_numeric(e.type) or kind in (INTEGER, STRING) and e.type != kind
+                   or kind == NUMBOOL and not (is_numeric(e.type) or e.type == BOOLEAN)
                    or kind == ARRAY and not isinstance(e.type, ArrayT) or kind == ANY and isinstance(e.type, ArrayT))
             if bad:
                 what = {NUM: "a number", INTEGER: "an Integer", STRING: "a String", ARRAY: "an array",
-                        ANY: "a value"}[kind]
+                        ANY: "a value", NUMBOOL: "a number or true/false"}[kind]
                 raise self.err(f"{name}() needs {what}, not {type_name(e.type)}", a,
                                ARG_HINTS.get(name) or (CUT if kind == INTEGER and e.type == REAL else ""))
             texts.append(e.text)

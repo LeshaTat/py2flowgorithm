@@ -40,7 +40,8 @@ class OutputTest(unittest.TestCase):
         self.assertEqual(output(1e16), "1E+16\n")
         # .NET writes an exponent from 1E+15 on (Python's repr only from 1e+16)
         self.assertEqual(output(1e15, " ", -1.5e15, " ", 999999999999999.0), "1E+15 -1.5E+15 999999999999999\n")
-        self.assertEqual(output(0.1 + 0.2), "0.30000000000000004\n")
+        # 15 significant digits, as Flowgorithm shows a Real (checked in Flowgorithm)
+        self.assertEqual(output(0.1 + 0.2, " ", 7 / 3, " ", 2 / 3), "0.3 2.33333333333333 0.666666666666667\n")
 
     def test_arrays_cannot_be_output(self):
         with self.assertRaises(fg.FlowgorithmError):
@@ -77,6 +78,10 @@ class FunctionsTest(unittest.TestCase):
         self.assertEqual(fg.ToCode("A"), 65)
         self.assertEqual(fg.ToChar(97), "a")
         self.assertEqual(fg.ToFixed(2.5, 2), "2.50")
+        # 15 significant digits, then half away from zero (checked in Flowgorithm)
+        self.assertEqual([fg.ToFixed(x, d) for x, d in ((2.25, 1), (-2.25, 1), (0.125, 2), (2.675, 2), (1.005, 2))],
+                         ["2.3", "-2.3", "0.13", "2.68", "1.01"])
+        self.assertEqual(fg.ToString(True), "true")
         self.assertEqual(fg.ToInteger("-12"), -12)
         self.assertEqual(fg.ToReal("2.5"), 2.5)
         self.assertEqual(fg.ToString(3.0), "3")
@@ -93,8 +98,8 @@ class FunctionsTest(unittest.TestCase):
                      lambda: fg.Ln(0), lambda: fg.Arcsin(2), lambda: fg.ToInteger("1.5"), lambda: fg.Len(5),
                      lambda: fg.Size("abc"), lambda: fg.Char("ab", 1.0),
                      # the conversions take what Flowgorithm documents: text, or a number for ToString
-                     lambda: fg.ToInteger(7.9), lambda: fg.ToReal(5), lambda: fg.ToString(True),
-                     lambda: fg.ToString("x"), lambda: fg.ToFixed(1.5, 0)):
+                     lambda: fg.ToInteger(7.9), lambda: fg.ToReal(5), lambda: fg.ToString("x"),
+                     lambda: fg.ToFixed(1.5, 0)):
             with self.assertRaises(fg.FlowgorithmError):
                 call()
 

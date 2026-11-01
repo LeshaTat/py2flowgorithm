@@ -21,6 +21,7 @@ index out of range, the square root of a negative number) these functions raise
 """
 from __future__ import annotations
 
+import decimal as _decimal
 import math as _math
 import random as _random
 import re as _re
@@ -49,15 +50,11 @@ def _text(value) -> str:
             return "NaN"
         if value in (_math.inf, -_math.inf):
             return "Infinity" if value > 0 else "-Infinity"
-        if value.is_integer() and abs(value) < 1e15:
-            return str(int(value))
-        text = repr(value)
-        if "e" not in text and abs(value) >= 1e15:  # .NET uses an exponent from 1E+15 on, Python from 1e+16
-            sign, digits = ("-", text[1:]) if text[0] == "-" else ("", text)
-            whole, _, fraction = digits.partition(".")
-            figures = (whole + fraction).rstrip("0")
-            text = f"{sign}{figures[0]}{'.' + figures[1:] if len(figures) > 1 else ''}e+{len(whole) - 1:02d}"
-        return text.replace("e", "E")
+        if value == 0:
+            return "0"
+        # 15 significant digits, as Flowgorithm shows a Real (.NET Framework): 7 / 3 is 2.33333333333333,
+        # 0.1 + 0.2 is 0.3, 1E+15, 1E-05
+        return format(value, ".15g").replace("e", "E")
     if t is str:
         return value
     if isinstance(value, list):
@@ -226,7 +223,7 @@ def ToFixed(n, decimals: int) -> str:
     if decimals < 1:  # Flowgorithm: "The value '0' is not valid for the function ToFixed."
         raise FlowgorithmError(f"the value {decimals} is not valid for ToFixed(): it shows at least 1 digit "
                                "after the point")
-    return f"{float(n):.{decimals}f}"
+    return _fixed(float(n), decimals)
 
 
 def ToInteger(text: str) -> int:
@@ -246,9 +243,24 @@ def ToReal(text: str) -> float:
         raise FlowgorithmError(f"ToReal() cannot convert {text!r}") from None
 
 
-def ToString(n) -> str:
-    """A number as text, exactly as Output shows it: ToString(2.0) is "2"."""
-    return _text(_number("ToString", n))
+def ToString(value) -> str:
+    """A number or a Boolean as text, exactly as Output shows it: ToString(2.0) is "2"."""
+    if type(value) not in (int, float, bool):
+        raise FlowgorithmError(f"ToString() needs a number or a Boolean, got {_text_or_type(value)}")
+    return _text(value)
+
+def _fixed(value: float, digits: int) -> str:
+    """ToFixed as Flowgorithm does it (.NET Framework's "F" format): the number to 15 significant
+    digits, then rounded half away from zero to `digits` places: 2.675 gives 2.68, 2.25 gives 2.3."""
+    if not _math.isfinite(value):
+        return _text(value)
+    with _decimal.localcontext() as context:
+        context.prec = 1000
+        exact = _decimal.Decimal(format(value, ".15g")).quantize(_decimal.Decimal(1).scaleb(-digits),
+                                                                 rounding=_decimal.ROUND_HALF_UP)
+    text = format(exact, "f")
+    return text[1:] if text.startswith("-") and not exact else text  # no "-0.00"
+
 
 
 # --------------------------------------------------------------------------- other

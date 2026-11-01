@@ -32,7 +32,9 @@ def main():
 | `x = Input(int)` | Input into an Integer: only whole-number text (`3.0` is rejected) |
 | `x = Input(float)`, `Input(str)`, `Input(bool)` | Input into a Real, a String (the default), a Boolean (`true` / `false`) |
 
-Values are shown the way Flowgorithm shows them: `2`, not `2.0`; `true`, not `True`; `1E+16`.
+Values are shown the way Flowgorithm shows them: `2`, not `2.0`; `true`, not `True`; Reals with
+at most 15 significant digits (`7 / 3` shows as `2.33333333333333`, `0.1 + 0.2` as `0.3`);
+`1E+16`.
 
 ## Functions
 
@@ -44,7 +46,7 @@ Values are shown the way Flowgorithm shows them: `2`, not `2.0`; `true`, not `Tr
 | `Len(s)`, `Char(s, i)` | the length of a String; its character at `i`, counting from 0 |
 | `ToCode(c)`, `ToChar(n)` | the code of a character, and the character of a code |
 | `ToInteger(text)`, `ToReal(text)` | a number read from text: `ToInteger("42")` is `42` |
-| `ToString(n)`, `ToFixed(n, digits)` | a number as text, as Output shows it; with exactly `digits` decimals (at least 1) |
+| `ToString(n)`, `ToFixed(n, digits)` | a number (or true/false) as text, as Output shows it; with exactly `digits` decimals (at least 1), rounded half away from zero (`ToFixed(2.675, 2)` is `2.68`) |
 | `Random(n)` | a whole number from 0 to n - 1 |
 | `Size(xs)` | the number of elements of an array |
 | `pi` | 3.141592653589793 |

@@ -429,6 +429,7 @@ class ExpressionTest(unittest.TestCase):
 
     def test_strings(self):
         self.assertEqual(self.expr('s + "!" + ToString(a)'), 's & "!" & ToString(a)')
+        self.assertEqual(self.expr('"ok: " + ToString(ok)'), '"ok: " & ToString(ok)')  # Booleans too
         self.assertEqual(self.expr('"say \\"hi\\""'), '"say " & ToChar(34) & "hi" & ToChar(34)')
 
     def test_library_functions(self):
@@ -449,7 +450,7 @@ class ExpressionTest(unittest.TestCase):
             "n = Random": "is not a value", "n = q": "used before it gets a value", "n = x in xs": "comparisons are not part",
             "if (n := 3) > a:\n    pass": "assignment expressions (:=)", "n = {1, 2}": "sets",
             "n = ToInteger(2.5)": "Int(x) cuts off the fraction", "n = ToReal(a)": "goes into a Real variable",
-            "n = ToString(ok)": "ToString() turns a number into text", "n = ToString(s)": "needs a number",
+            "n = ToString(s)": "needs a number or true/false",
             "s = ToFixed(a, 0)": "at least 1 digit after the point",
             "n = -7 % a": "stops on % with a negative number", "n = a % -2": "stops on % with a negative number",
         }

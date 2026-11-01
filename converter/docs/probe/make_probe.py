@@ -38,10 +38,14 @@ def main_checks() -> list:
     """probe.fprg: lines A to I. Answered checks that stop Flowgorithm are left out (see README.md)."""
     return [
         Declare(["i", "n", "rounds", "k"], INTEGER),
+        Declare(["third"], REAL),
         Declare(["ok"], BOOLEAN),
         # A: how Reals are written
         show("A1", "7 / 3"), show("A2", "0.1 + 0.2"), show("A3", "2 / 3"), show("A4", "10.0 ^ 15"),
         show("A5", "123456789.0 * 10000000"), show("A6", "1 / 3 * 3"), show("A7", "0.1 * 0.0001"),
+        # A8-A10: does Flowgorithm round Reals to 15 digits while calculating (A6 gave 0.999999999999999)?
+        show("A8", "0.1 + 0.2 == 0.3"), show("A9", "0.1 + 0.2 - 0.3"), Assign("third", "1 / 3"),
+        show("A10", "third * 3"),
         # B: ToFixed on values exactly halfway, and on values just below halfway in binary
         show("B1", "ToFixed(2.25, 1)"), show("B2", "ToFixed(-2.25, 1)"), show("B3", "ToFixed(0.125, 2)"),
         show("B4", "ToFixed(2.675, 2)"), show("B5", "ToFixed(1.005, 2)"),

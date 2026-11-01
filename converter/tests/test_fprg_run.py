@@ -237,9 +237,12 @@ class ExpressionTest(unittest.TestCase):
             with self.assertRaises(FprgSyntaxError, msg=text):
                 evaluate(text)
 
-    def test_short_circuit(self):
-        self.check('Len(s) > 0 and Char(s, 0) == "y"', False, {"s": ""})
-        self.check('Len(s) == 0 or Char(s, 0) == "y"', True, {"s": ""})
+    def test_both_sides_of_and_or_are_evaluated(self):
+        # checked in Flowgorithm: the right side runs even when the left side decides
+        for text in ('Len(s) > 0 and Char(s, 0) == "y"', 'Len(s) == 0 or Char(s, 0) == "y"'):
+            with self.assertRaises(FprgRuntimeError, msg=text):
+                self.check(text, None, {"s": ""})
+        self.check('Len(s) > 0 and Char(s, 0) == "y"', True, {"s": "yes"})
 
 
 class FormatTest(unittest.TestCase):
@@ -250,7 +253,8 @@ class FormatTest(unittest.TestCase):
         self.assertEqual(format_value(-0.0), "0")
         self.assertEqual(format_value(2.5), "2.5")
         self.assertEqual(format_value(0.1), "0.1")
-        self.assertEqual(format_value(1 / 3), "0.3333333333333333")
+        self.assertEqual(format_value(1 / 3), "0.333333333333333")   # 15 digits, as Flowgorithm shows it
+        self.assertEqual(format_value(0.1 + 0.2), "0.3")
         self.assertEqual(format_value(1e16), "1E+16")
         self.assertEqual(format_value(1.5e-7), "1.5E-07")
         self.assertEqual(format_value(True), "true")
@@ -333,10 +337,11 @@ class StatementTest(unittest.TestCase):
         body = decl("i", "Integer") + for_("i", "5", "1", out("i", newline=False), direction="dec") + out('""')
         self.assertEqual(run(body), "54321\n")
 
-    def test_for_inclusive_end_expression_evaluated_once(self):
+    def test_for_end_is_evaluated_again_every_round(self):
+        # checked in Flowgorithm: for i = 1 to n with n = n - 1 inside runs twice, not three times
         body = (decl("i, n", "Integer") + assign("n", "3")
-                + for_("i", "0", "n - 1", out("i", newline=False) + assign("n", "100")) + out('""'))
-        self.assertEqual(run(body), "012\n")
+                + for_("i", "1", "n", out("i", newline=False) + assign("n", "n - 1")) + out('""'))
+        self.assertEqual(run(body), "12\n")
 
     def test_for_zero_iterations(self):
         body = decl("i", "Integer") + for_("i", "5", "1", out('"never"')) + out('"i=" & i')
@@ -408,7 +413,7 @@ class StatementTest(unittest.TestCase):
         circle = func("Circle", "Real", "Area", param("Radius", "Real"),
                       decl("Area", "Real") + assign("Area", "Pi * Radius ^ 2"))
         body = decl("x", "Integer") + assign("x", "2") + out('"Area is " & circle(x)')   # case-insensitive call
-        self.assertEqual(run(body, functions=circle), f"Area is {math.pi * 4!r}\n")
+        self.assertEqual(run(body, functions=circle), "Area is 12.5663706143592\n")
 
     def test_function_returning_a_parameter(self):
         twice = func("Twice", "Integer", "n", param("n", "Integer"), assign("n", "n * 2"))
@@ -635,8 +640,7 @@ class SampleFilesTest(unittest.TestCase):
 
     def test_function_circle(self):
         text = self.sample("Function - Circle.fprg", ["2"])
-        self.assertEqual(text, f"Input the radius of the circle\nArea is {math.pi * 4!r}\n")
-        self.assertTrue(text.startswith("Input the radius of the circle\nArea is 12.56637061435917"))
+        self.assertEqual(text, "Input the radius of the circle\nArea is 12.5663706143592\n")
 
     def test_s14_array(self):
         text = self.sample("s14.fprg", ["3", "ann", "bob", "cy"])

@@ -106,9 +106,9 @@ do the same thing:
 * After the loop Flowgorithm's counter is one step past Python's last value (`for i in range(3)`
   leaves `i` at 3, not 2), so the variable gets a new value before it is read again — also in the
   next round of a loop around it. Keep a value you need in another variable inside the loop.
-* Python fixes where `range()` ends when the loop starts, so the body must not change what the
-  end is computed from (`for i in range(n)` with `n = n - 1` inside is reported; `Size(xs)` is
-  fine, an array keeps its size).
+* Python fixes where `range()` ends when the loop starts, while Flowgorithm checks the end again
+  every round, so the body must not change what the end is computed from (`for i in range(n)`
+  with `n = n - 1` inside is reported; `Size(xs)` is fine, an array keeps its size).
 * `Input(...)` names the type of the variable it reads into (`x = Input(float)` for a Real `x`),
   because Flowgorithm's Input reads whatever its variable holds.
 * Arrays have a fixed size and start out as 0 / 0.0 / "" / false; arrays are not copied or
@@ -126,16 +126,16 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
   value '-7' is not valid for the function % mod"), Python gives a result (`-7 % 2` is `1`,
   `7 % -2` is `-1`). Keep both sides of `%` at 0 or more (the converter rejects a negative number
   written out).
-* `and` / `or`: Python skips the right side when the left side decides; Flowgorithm may evaluate
-  both. `while i < Size(xs) and xs[i] != x` is warned about: the index must also work when
-  `i < Size(xs)` is false, so test it in a nested if (or use a found flag, as in
-  [`examples/exercises/search.py`](../examples/exercises/search.py)).
-* Ordering Strings with `<` / `>` (warned about): Python compares character codes (`"B" < "a"`),
-  Flowgorithm may order upper and lower case differently. `==` and `!=` are the same.
-* Reals that do not end, like `7 / 3`: the library prints all the digits Python has
-  (`2.3333333333333335`), an older Flowgorithm may print fewer. Show such results with
-  `ToFixed(x, 2)`. `ToFixed` of a value exactly halfway (`ToFixed(2.25, 1)`) may round the other
-  way.
+* `and` / `or`: Python skips the right side when the left side decides; Flowgorithm always
+  evaluates both (checked). `while i < Size(xs) and xs[i] != x` is warned about: in Flowgorithm
+  `xs[i]` runs even when `i < Size(xs)` is false and stops the program, so test it in a nested if
+  (or use a found flag, as in [`examples/exercises/search.py`](../examples/exercises/search.py)).
+* Ordering Strings with `<` / `>` (warned about): Python compares character codes (`"B" < "a"`).
+  Flowgorithm under Wine did the same; on Windows it may order upper and lower case
+  differently. `==` and `!=` are the same.
+* Reals print alike: the library shows at most 15 significant digits, as Flowgorithm does
+  (`7 / 3` is `2.33333333333333`). But Flowgorithm seems to round to 15 digits while calculating
+  too: `1 / 3 * 3` is `0.999999999999999` there and `1` in Python (the probe is checking this).
 * Very large whole numbers: Python's Integers have no limit, Flowgorithm's have a fixed size
   (keep them below 2 147 483 647, or use a Real).
 

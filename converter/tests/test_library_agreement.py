@@ -33,7 +33,8 @@ class LibraryAgreesWithInterpreterTest(unittest.TestCase):
 
     CASES = ["Int(-7 / 2)", "Abs(-2.5)", "Sgn(0)", "Sqrt(2)", "ToFixed(2.675, 2)", "ToFixed(1, 3)",
              "ToString(2.0)", "ToString(0.1)", "ToInteger(\"42\")", "ToReal(\"1e3\")", "Len(\"hello\")",
-             "Char(\"hello\", 4)", "ToCode(\"z\")", "ToChar(65)", "Log(10)", "Log10(2)", "Arctan(1)", "Cos(pi)"]
+             "Char(\"hello\", 4)", "ToCode(\"z\")", "ToChar(65)", "Log(10)", "Log10(2)", "Arctan(1)", "Cos(pi)",
+             "ToString(true)", "ToFixed(2.25, 1)", "ToFixed(-2.25, 1)", "ToFixed(1.005, 2)", "ToString(1 / 3)"]
 
     def test_functions(self):
         for case in self.CASES:

@@ -35,14 +35,10 @@ Flowgorithm's run-time behaviour is not documented and could not be checked agai
 real program on this machine, so the following are best guesses, chosen to agree with
 Flowgorithm's documentation where it exists and with its .NET implementation otherwise:
 
-* **Real output formatting.** A whole-valued Real prints like an integer (``3``, not
-  ``3.0``), which is what Flowgorithm's console shows; any other Real prints as the
-  shortest text that round-trips (``2.5``, ``0.1``, ``12.566370614359172``), with an
-  upper-case exponent marker (``1E+16``) as .NET prints it. Flowgorithm builds on the
-  classic .NET Framework may show at most 15 significant digits instead
-  (``12.5663706143592``), so differential tests should not depend on the last digits
-  of a non-terminating Real. From magnitude 1e15 on a Real is written with an exponent
-  (``1E+15``, ``-1.5E+15``), as .NET does. Booleans print as ``true``/``false``.
+* **Real output formatting** (checked in Flowgorithm): a Real prints with at most 15
+  significant digits, as .NET Framework's ``ToString()`` does (``2.33333333333333`` for
+  ``7 / 3``, ``0.3`` for ``0.1 + 0.2``, ``3`` for a whole value), with an exponent from
+  ``1E+15`` on and below ``0.0001`` (``1E-05``). Booleans print as ``true``/``false``.
 * ``&`` and ``ToString`` use that same formatting.
 * ``/`` always yields a Real. ``%``/``mod`` stops on a negative number on either side,
   as Flowgorithm does (checked: "The value '-7' is not valid for the function % mod",
@@ -50,11 +46,12 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   are Integers and the exponent is not negative, otherwise a Real. Integers are
   unbounded (Flowgorithm's are fixed-width, so very large values would differ).
   ``a ^ b ^ c`` is evaluated left to right; Flowgorithm's associativity is undocumented.
-* ``and``/``or`` short-circuit (the right operand is not evaluated when the left one
-  decides the result); operands must be Boolean.
+* ``and``/``or`` evaluate both sides, also when the left one decides the result (checked:
+  Flowgorithm does not skip the right side); operands must be Boolean.
 * Comparisons: numbers with numbers (Integer and Real mix freely), Strings with Strings
   by code point, Booleans only with ``==``/``!=``; anything else is a type error.
-* A ``for`` loop evaluates start, end and step once, assigns start to the variable,
+* A ``for`` loop evaluates start and step once and its end again before every round
+  (checked in Flowgorithm), assigns start to the variable,
   runs while ``variable <= end`` (``>= end`` for ``dec``) and adds (subtracts) step
   after each pass; the body may change the variable, and after the loop it holds the
   first value that failed the test. ``step`` must be positive.
@@ -63,9 +60,9 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
 * Assigning a Real to an Integer variable (or parameter) truncates toward zero; an
   Integer assigned to a Real converts; any other mismatch is an error.
 * ``Int`` truncates toward zero. ``Ln`` and ``Log`` are both the natural logarithm,
-  ``Log10`` the common one (matching .NET's ``Math.Log``). ``ToFixed`` rounds like
-  Python's ``format`` (round-half-even on the binary value) and needs at least 1 digit
-  (checked: Flowgorithm rejects ``ToFixed(x, 0)``). ``Random(n)`` is an
+  ``Log10`` the common one (matching .NET's ``Math.Log``). ``ToFixed`` takes the number
+  to 15 significant digits and rounds that half away from zero (``2.675`` gives ``2.68``,
+  ``2.25`` gives ``2.3``), and needs at least 1 digit (all checked in Flowgorithm). ``Random(n)`` is an
   integer in ``0 .. n-1``; ``EOF()`` is always ``true`` (there is no file input).
 * Input: Integer accepts only integer text (``"3.0"`` is rejected), Real any float
   text, Boolean ``true``/``false`` case-insensitively, String the line as typed;
@@ -74,6 +71,7 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
 from __future__ import annotations
 
 import argparse
+import decimal as _decimal
 import math
 import os
 import random as _random
@@ -187,15 +185,9 @@ def format_value(value) -> str:
             return "NaN"
         if value in (math.inf, -math.inf):
             return "Infinity" if value > 0 else "-Infinity"
-        if value.is_integer() and abs(value) < 1e15:
-            return str(int(value))
-        text = repr(value)
-        if "e" not in text and abs(value) >= 1e15:  # .NET uses an exponent from 1E+15 on, Python from 1e+16
-            sign, digits = ("-", text[1:]) if text[0] == "-" else ("", text)
-            whole, _, fraction = digits.partition(".")
-            figures = (whole + fraction).rstrip("0")
-            text = f"{sign}{figures[0]}{'.' + figures[1:] if len(figures) > 1 else ''}e+{len(whole) - 1:02d}"
-        return text.replace("e", "E")
+        if value == 0:
+            return "0"
+        return format(value, ".15g").replace("e", "E")  # 15 significant digits, as .NET Framework
     if t is str:
         return value
     if isinstance(value, FArray):
@@ -203,6 +195,19 @@ def format_value(value) -> str:
     if value is None:
         raise FprgRuntimeError("a None function has no value to convert to text")
     raise FprgRuntimeError(f"cannot format a value of type {t.__name__}")
+
+
+def fixed_text(value: float, digits: int) -> str:
+    """ToFixed as Flowgorithm does it (.NET Framework's "F" format): the number to 15 significant
+    digits, then rounded half away from zero to `digits` places: 2.675 gives 2.68, 2.25 gives 2.3."""
+    if not math.isfinite(value):
+        return format_value(value)
+    with _decimal.localcontext() as context:
+        context.prec = 1000
+        exact = _decimal.Decimal(format(value, ".15g")).quantize(_decimal.Decimal(1).scaleb(-digits),
+                                                                 rounding=_decimal.ROUND_HALF_UP)
+    text = format(exact, "f")
+    return text[1:] if text.startswith("-") and not exact else text  # no "-0.00"
 
 
 def coerce(value, vtype: str, what: str):
@@ -934,7 +939,7 @@ class Machine:
             raise FprgRuntimeError(f"loop variable '{st.var.name}' must be an Integer or Real variable, "
                                    f"it is {'an array' if slot.is_array else slot.type}")
         start = self._eval(st.start, frame)
-        end = self._eval(st.end, frame)
+        end = self._eval(st.end, frame)  # evaluated again before every round, as Flowgorithm does (checked)
         step = self._eval(st.step, frame)
         for label, v in (("start", start), ("end", end), ("step", step)):
             if not _is_number(v):
@@ -946,6 +951,9 @@ class Machine:
         while True:
             self._tick(frame, st.path)
             current = slot.value
+            end = self._eval(st.end, frame)
+            if not _is_number(end):
+                raise FprgRuntimeError(f"for-loop end must be a number, got {_describe(end)}")
             if (current < end) if st.dec else (current > end):
                 break
             self._exec_block(st.body, frame)
@@ -1011,12 +1019,10 @@ class Machine:
             left = self._eval(node[1], frame)
             if type(left) is not bool:
                 raise FprgRuntimeError(f"left operand of '{tag}' must be Boolean, got {_describe(left)}")
-            if left is (tag == "or"):   # short circuit: false and ..., true or ...
-                return left
-            right = self._eval(node[2], frame)
+            right = self._eval(node[2], frame)  # always: Flowgorithm evaluates both sides (checked)
             if type(right) is not bool:
                 raise FprgRuntimeError(f"right operand of '{tag}' must be Boolean, got {_describe(right)}")
-            return right
+            return (left or right) if tag == "or" else (left and right)
         if tag == "pi":
             return math.pi
         raise FprgRuntimeError(f"internal error: unknown expression node {tag!r}")
@@ -1216,7 +1222,7 @@ class Machine:
                 if digits < 1:  # Flowgorithm: "The value '0' is not valid for the function ToFixed."
                     raise FprgRuntimeError(f"the value {digits} is not valid for ToFixed(): it shows at least 1 "
                                            "digit after the point")
-                return f"{float(v):.{digits}f}"
+                return fixed_text(float(v), digits)
             if lower == "tointeger":
                 v = args[0]
                 if type(v) is int:
