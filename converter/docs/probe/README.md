@@ -22,7 +22,7 @@ Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
 |---|---|---|---|
 | A1–A7 | how a Real is written | 15 significant digits (`2.33333333333333`, `0.3`), an exponent from `1E+15` and below `0.0001` | — (answered) |
 | A8–A10 | does Flowgorithm round Reals to 15 digits while calculating (A6 gave `0.999999999999999`)? | yes: `true`, `0`, `0.999999999999999` | — (answered) |
-| A11 | are function results rounded too? (rides along in `probe-array-start.fprg`) | yes: `Sqrt(2) * Sqrt(2)` is `2.00000000000001` | only operators: `2` |
+| A11 | are function results rounded too? (in `probe-array-start.fprg`) | yes: `Sqrt(2) * Sqrt(2)` is `2.00000000000001` | — (answered) |
 | B1–B5 | `ToFixed` rounding | 15 digits, then half away from zero (`2.3`, `-2.3`, `0.13`, `2.68`, `1.01`) | — (answered) |
 | C3 | `7.5 % 2` | `1.5` | — (answered) |
 | D1–D3 | `2 ^ 3 ^ 2`, `-2 ^ 2`, `2 ^ -1` | `64`, `4`, `0.5` | — (answered) |
@@ -79,3 +79,4 @@ under Wine Staging 11.21 with Wine Mono 11.3 on macOS — so on Mono, not Micros
   the array (left out when the next loop stores into every element first), so any fill value
   works; `fprg_run` stops when an unset variable or element is read. `examples/arith_quiz/quiz.fprg`
   gained such a loop: its `results` array was read where wrong answers had stored nothing.
+* A11 printed `2.00000000000001`: function results are rounded to 15 digits too, as assumed.

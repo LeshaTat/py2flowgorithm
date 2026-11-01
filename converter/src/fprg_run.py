@@ -42,7 +42,8 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
 * ``&`` and ``ToString`` use that same formatting.
 * **Real arithmetic** (checked in Flowgorithm): every Real is rounded to 15 significant
   digits when it is computed, so ``1 / 3 * 3`` is ``0.999999999999999`` and
-  ``0.1 + 0.2 == 0.3`` is true. That function results are rounded the same way is assumed.
+  ``0.1 + 0.2 == 0.3`` is true; function results are rounded too (``Sqrt(2) * Sqrt(2)``
+  is ``2.00000000000001``).
 * ``/`` always yields a Real. ``%``/``mod`` stops on a negative number on either side,
   as Flowgorithm does (checked: "The value '-7' is not valid for the function % mod",
   and the same for '-2' on the right); otherwise it is the remainder, also for Reals. ``^`` yields an Integer when both operands
