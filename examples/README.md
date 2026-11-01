@@ -4,10 +4,10 @@ Programs written in Python the Flowgorithm way, with the
 [`flowgorithm` library](../library), each next to the flowchart the [converter](../converter)
 makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own project.
 
-* `guess_number.py` — the classic guessing game: a Do loop, `elif`, a function, a constant.
 * `arith_quiz/` — an arithmetic quiz with input validation, arrays, Random and eleven small
   functions, with its own unit tests (`test_quiz.py`): how a program is tested.
-* `exercises/` — fifteen classic first exercises, each a short program: `fizzbuzz` (`%`,
+* `exercises/` — sixteen classic first exercises, each a short program: `guess_number` (the
+  classic guessing game: a Do loop, `elif`, a function, a constant), `fizzbuzz` (`%`,
   `elif`), `primes` (a Boolean function, a While with two conditions), `bubble` (an array, nested
   For loops, a swap), `palindrome` (`Char`, `Len`, a For counting down), `binary` (building a
   String, `Int(n / 2)`), `search` (a While with a found flag instead of `break`, the largest

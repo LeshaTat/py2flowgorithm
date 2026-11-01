@@ -90,3 +90,6 @@ under Wine Staging 11.21 with Wine Mono 11.3 on macOS — so on Mono, not Micros
 * End to end: `examples/arith_quiz/quiz.fprg`, played in Flowgorithm (2 questions, one answered
   wrong), printed exactly what `quiz.py` prints in Python, and what `fprg_run` prints, for the same
   answers and the same random numbers.
+* All the other example programs (`examples/exercises/*.fprg`) then ran in Flowgorithm too and
+  printed exactly what their Python programs print for the same answers (and, for
+  `guess_number`, the same random number).

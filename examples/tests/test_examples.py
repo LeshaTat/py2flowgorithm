@@ -36,7 +36,7 @@ def play(*answers: str, randoms=(), shows=()):
 
 # every program, with the runs it is played with
 RUNS = {
-    "guess_number.py": [
+    "exercises/guess_number.py": [
         # Random(100) gives 41: the secret is 42
         play("50", "25", "42", randoms=[41], shows=["Too high.", "Too low.", "You needed 3 tries. Excellent!"]),
         play("50", "75", "90", "95", "99", "100", randoms=[99], shows=["You needed 6 tries. Good."]),
