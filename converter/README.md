@@ -139,8 +139,10 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
   (checked), and Python's arithmetic does not: `0.1 + 0.2 == 0.3` is true there and false in
   Python, `1 / 3 * 3` shows `0.999999999999999` there and `1` in Python. `==` and `!=` between
   Reals are warned about: compare with a tolerance, like `Abs(a - b) < 0.000001`.
-* Very large whole numbers: Python's Integers have no limit, Flowgorithm's have a fixed size
-  (keep them below 2 147 483 647, or use a Real).
+* Very large whole numbers: Flowgorithm's Integers are 64-bit and its arithmetic keeps 15
+  significant digits (checked): `2147483648 * 2147483648` is `4611686018427389952` there and
+  `4611686018427387904` in Python, and beyond 9223372036854775807 an Integer variable overflows.
+  Keep whole numbers below 1 000 000 000 000 000.
 
 ## Checking the flowchart without Flowgorithm
 

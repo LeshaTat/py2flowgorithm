@@ -170,6 +170,7 @@ class ExpressionTest(unittest.TestCase):
         self.check("Arctan(1) * 4", 3.14159265358979)   # every Real kept to 15 digits, as in Flowgorithm
         self.check("1 / 3 * 3", 0.999999999999999)       # checked in Flowgorithm
         self.check("0.1 + 0.2 == 0.3", True)
+        self.check("2147483648 * 2147483648", 4611686018427389952)   # checked: 15 significant digits
         self.check("Arcsin(1) * 2 == Arccos(0) * 2", True)
         self.check("ToChar(65) & ToCode(\"A\")", "A65")
         self.check('ToInteger("42") + ToInteger(3.9)', 45)
@@ -271,6 +272,12 @@ class FormatTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class StatementTest(unittest.TestCase):
+    def test_integer_overflow(self):
+        # checked in Flowgorithm: "Overflow ... Assign : big = 9.22337203685478E+18"
+        with self.assertRaises(FprgRuntimeError) as cm:
+            run(decl("big", "Integer") + assign("big", "4611686018427387904") + assign("big", "big * 2"))
+        self.assertIn("overflow", str(cm.exception))
+
     def test_declared_variables_hold_no_value(self):
         for kind in ("Integer", "Real", "String", "Boolean"):
             with self.assertRaises(FprgRuntimeError, msg=kind) as cm:

@@ -105,8 +105,8 @@ def overflow() -> list:
     return [
         Declare(["big"], INTEGER),
         Assign("big", "2147483647"), Assign("big", "big + 1"), show("L1", "big"),
-        Assign("big", "big * big"), show("L2", "big"), Assign("big", "big * 2"), show("L3", "big"),
-        text("Z end"),
+        Assign("big", "big * big"), show("L2", "big"),
+        text("Z end"),  # L3, big * 2, overflows the Integer (answered)
     ]
 
 

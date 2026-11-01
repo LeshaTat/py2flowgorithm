@@ -47,8 +47,9 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
 * ``/`` always yields a Real. ``%``/``mod`` stops on a negative number on either side,
   as Flowgorithm does (checked: "The value '-7' is not valid for the function % mod",
   and the same for '-2' on the right); otherwise it is the remainder, also for Reals. ``^`` yields an Integer when both operands
-  are Integers and the exponent is not negative, otherwise a Real. Integers are
-  unbounded (Flowgorithm's are fixed-width, so very large values would differ).
+  are Integers and the exponent is not negative, otherwise a Real. Integers are 64-bit:
+  storing a larger one stops with an overflow, and Integer results keep 15 significant
+  digits too (all checked in Flowgorithm).
   ``a ^ b ^ c`` is evaluated left to right; Flowgorithm's associativity is undocumented.
 * ``and``/``or`` evaluate both sides, also when the left one decides the result (checked:
   Flowgorithm does not skip the right side); operands must be Boolean.
@@ -216,11 +217,17 @@ def format_value(value) -> str:
     raise FprgRuntimeError(f"cannot format a value of type {t.__name__}")
 
 
-def real15(value):
-    """A value as Flowgorithm keeps it: a Real rounded to 15 significant digits, every time one is
-    computed (checked: 1 / 3 * 3 is 0.999999999999999 and 0.1 + 0.2 == 0.3 is true)."""
+def round15(value):
+    """A number as Flowgorithm keeps it, every time one is computed: rounded to 15 significant
+    digits (checked: 1 / 3 * 3 is 0.999999999999999, 0.1 + 0.2 == 0.3 is true, and the Integer
+    2147483648 * 2147483648 is 4611686018427389952)."""
     if type(value) is float and math.isfinite(value):
         return float(format(value, ".15g"))
+    if type(value) is int and abs(value) >= 10 ** 15:
+        try:
+            return int(float(format(value, ".15g")))
+        except OverflowError:  # beyond any Real: left for the Integer overflow check
+            return value
     return value
 
 
@@ -241,12 +248,19 @@ def coerce(value, vtype: str, what: str):
     """Convert ``value`` for storing into something of type ``vtype`` (Flowgorithm's assignment rules)."""
     t = type(value)
     if vtype == INTEGER:
-        if t is int:
-            return value
         if t is float:
             if value != value or value in (math.inf, -math.inf):
                 raise FprgRuntimeError(f"cannot assign {format_value(value)} to {what} (Integer)")
-            return int(value)  # truncates toward zero
+            value = int(value)  # truncates toward zero
+        if type(value) is int:
+            if not -2 ** 63 <= value < 2 ** 63:  # Flowgorithm: "Overflow ... Assign : big = 9.22337203685478E+18"
+                try:
+                    shown = format_value(float(value))
+                except OverflowError:
+                    shown = str(value)
+                raise FprgRuntimeError(f"overflow: {what} cannot hold {shown} "
+                                       "(Integers go up to 9223372036854775807)")
+            return value
     elif vtype == REAL:
         if t is int or t is float:
             try:
@@ -1022,7 +1036,7 @@ class Machine:
     def _eval(self, node: Node, frame: Frame):
         tag = node[0]
         if tag == "num":
-            return real15(node[1])
+            return round15(node[1])
         if tag == "str" or tag == "bool":
             return node[1]
         if tag == "var":
@@ -1031,7 +1045,7 @@ class Machine:
                 raise FprgRuntimeError(f"the variable '{node[1]}' was not initialized: nothing was stored into it")
             return value
         if tag == "bin":
-            return real15(self._binary(node[1], self._eval(node[2], frame), self._eval(node[3], frame)))
+            return round15(self._binary(node[1], self._eval(node[2], frame), self._eval(node[3], frame)))
         if tag == "call":
             return self._call(node, frame, as_statement=False)
         if tag == "index":
@@ -1142,7 +1156,7 @@ class Machine:
                 raise FprgRuntimeError(f"{INTRINSIC_NAMES[lower]}() takes {arity} argument(s), "
                                        f"{len(arg_nodes)} given")
             args = [self._eval(a, frame) for a in arg_nodes]
-            return real15(self._intrinsic(lower, args))
+            return round15(self._intrinsic(lower, args))
         fn = self.program.functions.get(lower)
         if fn is None:
             raise FprgRuntimeError(f"unknown function '{name}'")

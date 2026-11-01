@@ -14,8 +14,6 @@
             <output expression="&quot;L1 &quot; &amp; (big)" newline="True"/>
             <assign variable="big" expression="big * big"/>
             <output expression="&quot;L2 &quot; &amp; (big)" newline="True"/>
-            <assign variable="big" expression="big * 2"/>
-            <output expression="&quot;L3 &quot; &amp; (big)" newline="True"/>
             <output expression="&quot;Z end&quot;" newline="True"/>
         </body>
     </function>
