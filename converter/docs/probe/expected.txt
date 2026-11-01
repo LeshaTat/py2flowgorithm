@@ -45,7 +45,7 @@ Z end
 
 == probe-array-start.fprg
 A11 2.00000000000001
-(stops: the variable 'xs' was not initialized: nothing was stored into xs[0] (in function Main, at Main/body[5]/output))
+Z end
 
 == probe-redeclare.fprg
 K1 round 1: row[0] set to 5
