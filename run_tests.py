@@ -1,7 +1,7 @@
 """Run the tests of all three projects: python3 run_tests.py
 
 Every suite runs with this repository's library and converter first on the path, so it tests
-this clone even when an installed copy (python3 install.py) points somewhere else.
+this folder's code even when an installed copy (python3 install.py) points somewhere else.
 """
 import os
 import subprocess

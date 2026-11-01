@@ -1,8 +1,16 @@
-# Flowgorithm in Python
+# Converter from Python to Flowgorithm
 
 [Flowgorithm](http://www.flowgorithm.org) programs are drawn as flowcharts, shape by shape. Here a
 student writes the program in Python instead — in a small dialect that matches Flowgorithm one to
 one — runs and tests it like any Python program, and gets the flowchart from it.
+
+* **Who it is for:** students who already know how to code and have no trouble editing code in
+  text files. The purpose is to make some use of Flowgorithm for them.
+* **The conversion is one-way:** from Python to the flowchart. Nothing turns a `.fprg` back into
+  Python, so a change made in Flowgorithm never reaches the program, and converting again
+  overwrites it: change the Python and convert again.
+* **Written by AI:** the library, the converter and the examples were written by Claude Opus 5.5,
+  an AI model made by Anthropic.
 
 ```python
 """Sum of Numbers.
@@ -45,25 +53,14 @@ This repository holds three projects:
 
 You need Python 3.11 or newer; nothing outside the standard library.
 
-1. Clone this repository and install the library and the converter for your Python:
+1. Clone this repository and install the library and the converter for your Python (see
+   [install.py](#installpy)):
 
    ```bash
-   git clone <this repository> flowgorithm
-   cd flowgorithm
+   git clone https://github.com/LeshaTat/py2flowgorithm.git
+   cd py2flowgorithm
    python3 install.py
    ```
-
-   Now every program run with that Python can `from flowgorithm import *`, and `py2fprg` works in
-   any folder. Nothing is copied: `install.py` writes one file, `flowgorithm-repo.pth`, into your
-   Python's user site-packages, naming the clone's `library/src` and `converter/src`, plus small
-   launchers for the commands `py2fprg`, `fprg-run`, `fprg-lint` and `fprg2svg`. So `git pull`
-   updates everything, and `python3 install.py --uninstall` takes it out again. Run `install.py`
-   again after moving the clone, and once for every other Python you use (IDLE, an IDE, another
-   version).
-
-   If the shell then says `py2fprg: command not found`, the folder with the launchers is not on
-   your PATH: `install.py` printed which folder to add. Until then `python3 -m py2fprg` does the
-   same.
 
 2. Start your own project from the examples, in a repository of its own:
 
@@ -73,8 +70,11 @@ You need Python 3.11 or newer; nothing outside the standard library.
    git init
    python3 exercises/fizzbuzz.py            # run a program
    py2fprg exercises                        # make the flowcharts of a folder
-   python3 -m unittest discover -s tests    # play every program in Python and as a flowchart
+   python3 -m unittest discover -s tests    # each program and its .fprg must print the same
    ```
+
+   The test runs each program in Python and its `.fprg` in `fprg_run`, the converter's
+   interpreter of `.fprg` files (not Flowgorithm), on the same typed answers.
 
    [`examples/README.md`](examples/README.md) explains the folder and how to add programs. A lab
    starts from one folder of it instead: `cp -r examples/lab1_cinema ~/lab1-cinema` (see
@@ -84,7 +84,7 @@ On Windows, where Flowgorithm runs, the same steps in PowerShell (`py -m py2fprg
 or not the launchers' folder is on PATH):
 
 ```powershell
-py install.py                                   # in the clone
+py install.py                                   # in the repository folder
 Copy-Item -Recurse examples $HOME\my-flowgorithm
 cd $HOME\my-flowgorithm
 git init
@@ -93,15 +93,36 @@ py -m py2fprg exercises
 py -m unittest discover -s tests
 ```
 
-With pip instead: in a virtual environment, `pip install -e library -e converter` does the same
-for that environment.
+## install.py
+
+`python3 install.py` installs the library and the converter for the Python that runs it: that
+Python's programs can then `from flowgorithm import *`, and `py2fprg` works in any folder.
+
+If the shell says `py2fprg: command not found` try `python3 -m py2fprg`.
+Uninstall: `python3 install.py --uninstall`.
+
+## VS Code
+
+The cinema example, [`examples/lab1_cinema`](examples/lab1_cinema/), comes with a `.vscode`
+folder that sets VS Code up for the project. Copied into another project whose program is
+`main.py`, it works there the same. It needs VS Code's Python extension.
+
+First pick the Python that `install.py` was run with: Python: Select Interpreter in the Command
+Palette (Ctrl+Shift+P, Cmd+Shift+P on a Mac).
+
+To convert, open Run and Debug, choose Convert to Flowgorithm and press the green arrow (or F5,
+or Run > Start Debugging): it writes the flowchart of every program in the folder, here
+`main.fprg`. Terminal > Run Build Task (Ctrl+Shift+B, Cmd+Shift+B on a Mac) converts too and
+lists the converter's errors in Problems, each with a link to its line.
+
+To run the program, choose Play main.py in Run and Debug the same way.
+
+The unit tests are in the Testing view: VS Code finds the tests in every `.py` file of the
+project and runs one test, one file's or all of them from there.
 
 ## Tests
 
-`python3 run_tests.py` runs the tests of all three projects against this clone. They include the
-check that matters most: every example and test program, run in Python with the library and run
-as its flowchart (with the converter's interpreter, `fprg_run`), prints exactly the same text.
-
-The projects depend on each other in one direction: the library stands alone; the converter knows
-the library's functions and runs programs with it in its tests; the examples need both. A change
-that touches more than one of them goes in one commit.
+`python3 run_tests.py` runs the tests of all three projects with this folder's code. They include
+the check that matters most: every example and test program is converted with py2fprg, its
+`.fprg` is run in `fprg_run` (the converter's interpreter of `.fprg` files, not Flowgorithm), and
+it must print exactly what the Python program prints.

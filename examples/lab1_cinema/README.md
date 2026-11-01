@@ -13,10 +13,10 @@ option for now: Show seats, which shows task 1.1's map. Copy this folder to star
 | `.vscode/` | VS Code: the tests in the Testing view, buttons to play the program and to convert it |
 
 Needs the flowgorithm library and the converter, installed once with `python3 install.py` in the
-flowgorithm repository.
+[py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository.
 
 ```bash
-cp -r examples/lab1_cinema ~/lab1-cinema       # in the flowgorithm repository
+cp -r examples/lab1_cinema ~/lab1-cinema       # in the py2flowgorithm repository
 cd ~/lab1-cinema
 git init
 python3 main.py                                # play it

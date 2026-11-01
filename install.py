@@ -1,17 +1,17 @@
-"""Install the flowgorithm library and the py2fprg converter for your Python, from this clone.
+"""Install the flowgorithm library and the py2fprg converter for your Python, from this folder.
 
-    python3 install.py              # install (again after moving the clone)
+    python3 install.py              # install (again after moving this folder)
     python3 install.py --uninstall  # remove what it added
 
 Afterwards every program run with this Python can `from flowgorithm import *`, and the commands
 py2fprg, fprg-run, fprg-lint and fprg2svg work in any folder (as do `python3 -m py2fprg` and
-`python3 -m fprg_run`). Nothing is copied: Python reads both projects from this clone, so a
+`python3 -m fprg_run`). Nothing is copied: Python reads both projects from this folder, so a
 `git pull` here updates them.
 
 It adds two kinds of files:
 
 * flowgorithm-repo.pth in this Python's user site-packages (in an active virtual environment: in
-  its site-packages), naming library/src and converter/src of this clone. That is what
+  its site-packages), naming library/src and converter/src of this folder. That is what
   `pip install --user -e` would add, and it also works where pip refuses user installs (Homebrew,
   Linux distributions).
 * a small launcher script per command, in a folder on your PATH when there is one.
@@ -90,7 +90,7 @@ def ours(path: str) -> bool:
 def install(bin_folder: str) -> int:
     for source in SOURCES:
         if not os.path.isdir(source):
-            sys.exit(f"{source} is missing: run install.py from a complete clone of the repository")
+            sys.exit(f"{source} is missing: install.py must stay in the repository folder, next to library/ and converter/")
     folder = packages_folder()
     os.makedirs(folder, exist_ok=True)
     pth = os.path.join(folder, PTH)
@@ -149,7 +149,7 @@ def uninstall(bin_folder: str | None) -> int:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Install the flowgorithm library and the py2fprg converter "
-                                            "for this Python, straight from this clone.")
+                                            "for this Python, straight from this folder.")
     p.add_argument("--uninstall", action="store_true", help="remove what install.py added")
     p.add_argument("--bin", help="the folder for the commands (default: one on your PATH when possible)")
     a = p.parse_args(argv)

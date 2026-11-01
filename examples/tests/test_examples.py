@@ -26,7 +26,8 @@ try:
     import fprg_run  # noqa: E402
     from py2fprg import convert_file, is_program_file  # noqa: E402
 except ImportError as e:
-    raise ImportError(f"{e.name} is not installed: run `python3 install.py` in the flowgorithm repository") from None
+    raise ImportError(f"{e.name} is not installed: run `python3 install.py` in the py2flowgorithm "
+                      "repository (https://github.com/LeshaTat/py2flowgorithm)") from None
 
 
 def play(*answers: str, randoms=(), shows=()):

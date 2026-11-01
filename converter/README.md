@@ -6,6 +6,10 @@ Flowgorithm's input/output and built-in functions, so running one in Python show
 flowchart will show; the [examples](../examples) are such programs. Everything outside the dialect
 is reported with the file, the line and what to write instead (`print()` → use `Output(...)`).
 
+The conversion is one-way: nothing turns a `.fprg` back into Python, and converting again
+overwrites the flowchart, so changes go into the program. The converter was written by Claude
+Opus 5.5, an AI model made by Anthropic, like the rest of this repository.
+
 The package also has three tools for `.fprg` files: a validator, a renderer and an interpreter
 (see [Checking the flowchart without Flowgorithm](#checking-the-flowchart-without-flowgorithm)).
 

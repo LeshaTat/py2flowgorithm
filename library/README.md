@@ -4,7 +4,8 @@ The library a program imports to be written the Flowgorithm way. `from flowgorit
 gives Flowgorithm's Output and Input statements and its built-in functions, with Flowgorithm's
 behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the
-[examples](../examples) show whole programs.
+[examples](../examples) show whole programs. The library was written by Claude Opus 5.5, an AI
+model made by Anthropic, like the rest of this repository.
 
 It is one file with nothing outside the standard library (`src/flowgorithm.py`). Install it
 together with the converter by running `python3 install.py` at the repository root (see the
