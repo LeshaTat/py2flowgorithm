@@ -13,9 +13,18 @@ B2 -2.2
 B3 0.12
 B4 2.67
 B5 1.00
+C2 1
+C3 1.5
 D1 64
 D2 4
 D3 0.5
+E1 true
+E2 false
+E3 true
+E4 false
+true
+F1 true
+F2 true
 G1 before
 G1 after
 G2 before
@@ -24,65 +33,16 @@ H1 4
 H2 3
 H3 0
 I1 -3
-I5 -1
-Z end
-
-== probe-one-by-one.fprg (typed 1)
-Which check? Type a number from 1 to 10.
-C2 1
-Z end
-
-== probe-one-by-one.fprg (typed 2)
-Which check? Type a number from 1 to 10.
-C3 1.5
-Z end
-
-== probe-one-by-one.fprg (typed 3)
-Which check? Type a number from 1 to 10.
-E1 true
-E2 false
-E3 true
-E4 false
-Z end
-
-== probe-one-by-one.fprg (typed 4)
-Which check? Type a number from 1 to 10.
-true
-F1 true
-Z end
-
-== probe-one-by-one.fprg (typed 5)
-Which check? Type a number from 1 to 10.
-F2 true
-Z end
-
-== probe-one-by-one.fprg (typed 6)
-Which check? Type a number from 1 to 10.
 I2 -3
 I3 3
-Z end
-
-== probe-one-by-one.fprg (typed 7)
-Which check? Type a number from 1 to 10.
 I4 42
-Z end
-
-== probe-one-by-one.fprg (typed 8)
-Which check? Type a number from 1 to 10.
+I5 -1
 J1 0
 J2 0
 J3 []
 J4 false
-Z end
-
-== probe-one-by-one.fprg (typed 9)
-Which check? Type a number from 1 to 10.
 K1 round 1: row[0] set to 5
 K2 round 2: row[0] is 0
-Z end
-
-== probe-one-by-one.fprg (typed 10)
-Which check? Type a number from 1 to 10.
 L1 2147483648
 L2 4611686018427387904
 L3 9223372036854775808

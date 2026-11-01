@@ -3,12 +3,12 @@
     <attributes>
         <attribute name="name" value="Probe: run-time rules"/>
         <attribute name="authors" value="py2fprg"/>
-        <attribute name="about" value="Run me once in Flowgorithm and compare the console with expected.txt."/>
+        <attribute name="about" value="Run me in Flowgorithm: an error message, or the console up to Z end."/>
     </attributes>
     <function name="Main" type="None" variable="">
         <parameters/>
         <body>
-            <declare name="i, n, rounds" type="Integer" array="False" size=""/>
+            <declare name="i, n, rounds, k, big, round" type="Integer" array="False" size=""/>
             <declare name="ok" type="Boolean" array="False" size=""/>
             <output expression="&quot;A1 &quot; &amp; (7 / 3)" newline="True"/>
             <output expression="&quot;A2 &quot; &amp; (0.1 + 0.2)" newline="True"/>
@@ -22,9 +22,19 @@
             <output expression="&quot;B3 &quot; &amp; (ToFixed(0.125, 2))" newline="True"/>
             <output expression="&quot;B4 &quot; &amp; (ToFixed(2.675, 2))" newline="True"/>
             <output expression="&quot;B5 &quot; &amp; (ToFixed(1.005, 2))" newline="True"/>
+            <output expression="&quot;C2 &quot; &amp; (7 % -2)" newline="True"/>
+            <output expression="&quot;C3 &quot; &amp; (7.5 % 2)" newline="True"/>
             <output expression="&quot;D1 &quot; &amp; (2 ^ 3 ^ 2)" newline="True"/>
             <output expression="&quot;D2 &quot; &amp; (-2 ^ 2)" newline="True"/>
             <output expression="&quot;D3 &quot; &amp; (2 ^ -1)" newline="True"/>
+            <output expression="&quot;E1 &quot; &amp; (&quot;B&quot; &lt; &quot;a&quot;)" newline="True"/>
+            <output expression="&quot;E2 &quot; &amp; (&quot;apple&quot; &lt; &quot;Banana&quot;)" newline="True"/>
+            <output expression="&quot;E3 &quot; &amp; (&quot;10&quot; &lt; &quot;9&quot;)" newline="True"/>
+            <output expression="&quot;E4 &quot; &amp; (&quot;a&quot; == &quot;A&quot;)" newline="True"/>
+            <assign variable="ok" expression="true"/>
+            <output expression="ok" newline="True"/>
+            <output expression="&quot;F1 &quot; &amp; (ok)" newline="True"/>
+            <output expression="&quot;F2 &quot; &amp; (ToString(5 &gt; 3))" newline="True"/>
             <output expression="&quot;G1 before&quot;" newline="True"/>
             <assign variable="ok" expression="false and Probe(1)"/>
             <output expression="&quot;G1 after&quot;" newline="True"/>
@@ -43,7 +53,39 @@
             <for variable="i" start="3" end="1" direction="dec" step="1"/>
             <output expression="&quot;H3 &quot; &amp; (i)" newline="True"/>
             <output expression="&quot;I1 &quot; &amp; (Int(-3.7))" newline="True"/>
+            <assign variable="k" expression="-3.7"/>
+            <output expression="&quot;I2 &quot; &amp; (k)" newline="True"/>
+            <assign variable="k" expression="3.7"/>
+            <output expression="&quot;I3 &quot; &amp; (k)" newline="True"/>
+            <output expression="&quot;I4 &quot; &amp; (ToInteger(&quot;  42 &quot;))" newline="True"/>
             <output expression="&quot;I5 &quot; &amp; (Sgn(-0.5))" newline="True"/>
+            <declare name="xs" type="Integer" array="True" size="3"/>
+            <declare name="rs" type="Real" array="True" size="2"/>
+            <declare name="ss" type="String" array="True" size="2"/>
+            <declare name="bs" type="Boolean" array="True" size="2"/>
+            <output expression="&quot;J1 &quot; &amp; (xs[0])" newline="True"/>
+            <output expression="&quot;J2 &quot; &amp; (rs[1])" newline="True"/>
+            <output expression="&quot;J3 &quot; &amp; (&quot;[&quot; &amp; ss[0] &amp; &quot;]&quot;)" newline="True"/>
+            <output expression="&quot;J4 &quot; &amp; (bs[1])" newline="True"/>
+            <for variable="round" start="1" end="2" direction="inc" step="1">
+                <declare name="row" type="Integer" array="True" size="2"/>
+                <if expression="round == 1">
+                    <then>
+                        <assign variable="row[0]" expression="5"/>
+                        <output expression="&quot;K1 round 1: row[0] set to 5&quot;" newline="True"/>
+                    </then>
+                    <else>
+                        <output expression="&quot;K2 round 2: row[0] is &quot; &amp; (row[0])" newline="True"/>
+                    </else>
+                </if>
+            </for>
+            <assign variable="big" expression="2147483647"/>
+            <assign variable="big" expression="big + 1"/>
+            <output expression="&quot;L1 &quot; &amp; (big)" newline="True"/>
+            <assign variable="big" expression="big * big"/>
+            <output expression="&quot;L2 &quot; &amp; (big)" newline="True"/>
+            <assign variable="big" expression="big * 2"/>
+            <output expression="&quot;L3 &quot; &amp; (big)" newline="True"/>
             <output expression="&quot;Z end&quot;" newline="True"/>
         </body>
     </function>

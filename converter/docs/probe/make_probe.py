@@ -5,9 +5,9 @@ fprg_run.py).
 
     python3 converter/docs/probe/make_probe.py      # writes the .fprg files and expected.txt here
 
-probe.fprg holds the checks that should all run: run it once and compare its console with
-expected.txt. probe-one-by-one.fprg holds the checks that may stop the program (Flowgorithm stops at
-the first error): it asks for a number and runs only that check, so run it once per number.
+probe.fprg holds all the checks. Flowgorithm stops at the first error: the error message is the
+answer, so the line it stopped at is recorded in README.md, the library and fprg_run follow it, and
+the line is dropped or replaced here before the next run, until the probe runs to `Z end`.
 Every output line starts with a label (A1, B2, ...); README.md in this folder says what each label
 tests. The probes are written as flowcharts directly because the dialect rejects most of these
 constructs on purpose.
@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import fprg_run  # noqa: E402
-from py2fprg.model import (Assign, BOOLEAN, Declare, For, Function, INTEGER, If, Input, Output, Param,  # noqa: E402
+from py2fprg.model import (Assign, BOOLEAN, Declare, For, Function, INTEGER, If, Output, Param,  # noqa: E402
                            Program, REAL, STRING)
 from py2fprg.writer import write_program  # noqa: E402
 
@@ -33,10 +33,10 @@ def text(line: str) -> Output:
     return Output(f'"{line}"')
 
 
-def clean_run() -> list:
-    """Checks that should not stop the program."""
+def checks() -> list:
+    """Every check, in label order. Answered checks that stop Flowgorithm are left out (see README.md)."""
     return [
-        Declare(["i", "n", "rounds"], INTEGER),
+        Declare(["i", "n", "rounds", "k", "big", "round"], INTEGER),
         Declare(["ok"], BOOLEAN),
         # A: how Reals are written
         show("A1", "7 / 3"), show("A2", "0.1 + 0.2"), show("A3", "2 / 3"), show("A4", "10.0 ^ 15"),
@@ -44,8 +44,15 @@ def clean_run() -> list:
         # B: ToFixed on values exactly halfway, and on values just below halfway in binary
         show("B1", "ToFixed(2.25, 1)"), show("B2", "ToFixed(-2.25, 1)"), show("B3", "ToFixed(0.125, 2)"),
         show("B4", "ToFixed(2.675, 2)"), show("B5", "ToFixed(1.005, 2)"),
+        # C: % (C1, -7 % 2, stops Flowgorithm)
+        show("C2", "7 % -2"), show("C3", "7.5 % 2"),
         # D: ^
         show("D1", "2 ^ 3 ^ 2"), show("D2", "-2 ^ 2"), show("D3", "2 ^ -1"),
+        # E: ordering Strings
+        show("E1", '"B" < "a"'), show("E2", '"apple" < "Banana"'), show("E3", '"10" < "9"'),
+        show("E4", '"a" == "A"'),
+        # F: Booleans as text
+        Assign("ok", "true"), Output("ok"), show("F1", "ok"), show("F2", "ToString(5 > 3)"),
         # G: is the right side of and / or evaluated when the left side decides?
         text("G1 before"), Assign("ok", "false and Probe(1)"), text("G1 after"),
         text("G2 before"), Assign("ok", "true or Probe(2)"), text("G2 after"),
@@ -54,8 +61,21 @@ def clean_run() -> list:
         Assign("n", "3"), Assign("rounds", "0"),
         For("i", "1", "n", body=[Assign("n", "n - 1"), Assign("rounds", "rounds + 1")]), show("H2", "rounds"),
         For("i", "3", "1", "dec", body=[]), show("H3", "i"),
-        # I: whole numbers from Reals
-        show("I1", "Int(-3.7)"), show("I5", "Sgn(-0.5)"),
+        # I: whole numbers from Reals and text
+        show("I1", "Int(-3.7)"), Assign("k", "-3.7"), show("I2", "k"), Assign("k", "3.7"), show("I3", "k"),
+        show("I4", 'ToInteger("  42 ")'), show("I5", "Sgn(-0.5)"),
+        # J: what a new array holds
+        Declare(["xs"], INTEGER, True, "3"), Declare(["rs"], REAL, True, "2"), Declare(["ss"], STRING, True, "2"),
+        Declare(["bs"], BOOLEAN, True, "2"),
+        show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]"),
+        # K: a Declare that runs again
+        For("round", "1", "2", body=[
+            Declare(["row"], INTEGER, True, "2"),
+            If("round == 1", [Assign("row[0]", "5"), text("K1 round 1: row[0] set to 5")],
+               [show("K2 round 2: row[0] is", "row[0]")])]),
+        # L: how big an Integer gets (small literals only: a literal too big could stop the file loading)
+        Assign("big", "2147483647"), Assign("big", "big + 1"), show("L1", "big"),
+        Assign("big", "big * big"), show("L2", "big"), Assign("big", "big * 2"), show("L3", "big"),
         text("Z end"),
     ]
 
@@ -69,45 +89,9 @@ def probe_function() -> Function:
     ])
 
 
-# the checks that may stop the program: number -> shapes
-ONE_BY_ONE = {
-    1: [show("C2", "7 % -2")],
-    2: [show("C3", "7.5 % 2")],
-    3: [show("E1", '"B" < "a"'), show("E2", '"apple" < "Banana"'), show("E3", '"10" < "9"'),
-        show("E4", '"a" == "A"')],
-    4: [Assign("ok", "true"), Output("ok"), show("F1", "ok")],
-    5: [show("F2", "ToString(5 > 3)")],
-    6: [Assign("k", "-3.7"), show("I2", "k"), Assign("k", "3.7"), show("I3", "k")],
-    7: [show("I4", 'ToInteger("  42 ")')],
-    8: [Declare(["xs"], INTEGER, True, "3"), Declare(["rs"], REAL, True, "2"), Declare(["ss"], STRING, True, "2"),
-        Declare(["bs"], BOOLEAN, True, "2"),
-        show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]")],
-    9: [For("round", "1", "2", body=[
-            Declare(["row"], INTEGER, True, "2"),
-            If("round == 1", [Assign("row[0]", "5"), text("K1 round 1: row[0] set to 5")],
-               [show("K2 round 2: row[0] is", "row[0]")])])],
-    # only small literals: a literal too big for Flowgorithm could stop the file from loading
-    10: [Assign("big", "2147483647"), Assign("big", "big + 1"), show("L1", "big"),
-         Assign("big", "big * big"), show("L2", "big"), Assign("big", "big * 2"), show("L3", "big")],
-}
-
-
-def one_by_one() -> list:
-    return [
-        Declare(["choice", "k", "big", "round"], INTEGER),
-        Declare(["ok"], BOOLEAN),
-        text(f"Which check? Type a number from 1 to {len(ONE_BY_ONE)}."),
-        Input("choice"),
-        *[If(f"choice == {number}", shapes, []) for number, shapes in ONE_BY_ONE.items()],
-        text("Z end"),
-    ]
-
-
 PROBES = {
-    "probe": ("Probe: run-time rules", "Run me once in Flowgorithm and compare the console with expected.txt.",
-              clean_run(), [probe_function()], [[]]),
-    "probe-one-by-one": ("Probe: one check per run", "Run me once per number; an error message is an answer too.",
-                         one_by_one(), [], [[str(number)] for number in ONE_BY_ONE]),
+    "probe": ("Probe: run-time rules", "Run me in Flowgorithm: an error message, or the console up to Z end.",
+              checks(), [probe_function()], [[]]),
 }
 
 
