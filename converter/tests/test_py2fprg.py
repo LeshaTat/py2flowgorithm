@@ -10,6 +10,7 @@ import contextlib
 import io
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -536,6 +537,110 @@ class DifferentialTest(unittest.TestCase):
             for k in range(Size(xs) - 1, -1, -1):
                 Output(xs[k])
         '''))
+
+
+class FilesTest(unittest.TestCase):
+    """A program may import functions and constants from files in its folder, and keep its tests."""
+
+    def write(self, **files: str) -> str:
+        root = tempfile.mkdtemp(prefix="py2fprg_files_")
+        for name, text in files.items():
+            with open(os.path.join(root, name + ".py"), "w") as fh:
+                fh.write(textwrap.dedent(text).lstrip())
+        return root
+
+    def error_of_file(self, path: str) -> str:
+        try:
+            convert_path(path, metadata=False)
+        except ConvertError as e:
+            return e.format()
+        raise AssertionError("expected a ConvertError")
+
+    def test_imported_functions_go_into_the_one_flowchart(self):
+        root = self.write(seats='''
+            """Seats."""
+            import unittest
+
+            from flowgorithm import *
+
+            SEATS = 3
+
+
+            def label(n: int) -> str:
+                return "seat " + ToString(n)
+
+
+            def unused():
+                Output("never")
+
+
+            class LabelTest(unittest.TestCase):
+                def test_label(self):
+                    self.assertEqual(label(2), "seat 2")
+        ''', show='''
+            from flowgorithm import *
+            from seats import SEATS, label
+
+
+            def show_all():
+                for n in range(1, SEATS + 1):
+                    Output(label(n))
+        ''', prog='''
+            """Seats program."""
+            import unittest
+
+            from flowgorithm import *
+            from show import show_all
+
+
+            def main():
+                show_all()
+
+
+            if __name__ == "__main__":
+                main()
+
+
+            class MainTest(unittest.TestCase):
+                def test_main(self):
+                    with console() as screen:
+                        main()
+                    self.assertEqual(screen.text, "seat 1\\nseat 2\\nseat 3\\n")
+        ''')
+        (path, xml), = convert_path(root, metadata=False)  # the folder has one program: prog.py
+        self.assertEqual(os.path.basename(path), "prog.fprg")
+        self.assertEqual(re.findall(r'<function name="(\w+)"', xml), ["Main", "label", "showAll"])
+        self.assertNotIn("never", xml)
+        self.assertNotIn("Test", xml)
+        self.assertEqual(fprg_run.run_string(xml), "seat 1\nseat 2\nseat 3\n")
+        python = subprocess.run([sys.executable, "prog.py"], cwd=root, capture_output=True, text=True,
+                                env=dict(os.environ, PYTHONPATH=LIBRARY))
+        self.assertEqual(python.stdout, "seat 1\nseat 2\nseat 3\n", python.stderr)
+        tests = subprocess.run([sys.executable, "-m", "unittest", "discover", "-p", "*.py"], cwd=root,
+                               capture_output=True, text=True, env=dict(os.environ, PYTHONPATH=LIBRARY))
+        self.assertIn("Ran 2 tests", tests.stderr)
+
+    def test_import_errors(self):
+        root = self.write(
+            a="from flowgorithm import *\nfrom b import g\n\n\ndef f() -> int:\n    return g()\n",
+            b="from flowgorithm import *\nfrom a import f\n\n\ndef g() -> int:\n    return 1\n",
+            c="from flowgorithm import *\n\n\ndef h() -> int:\n    return 2\n\n\ndef hidden() -> int:\n"
+              "    return 3\n",
+            d="from flowgorithm import *\n\n\ndef h() -> int:\n    return 4\n")
+        cases = {
+            ("from nowhere import f", "pass"): "there is no file nowhere.py next to prog.py",
+            ("from c import missing", "pass"): "c.py has no function or constant 'missing'",
+            ("from a import f", "pass"): "these files import each other in a circle: a.py -> b.py -> a.py",
+            ("from c import h\nfrom d import h", "pass"): "h() is defined twice (also in c.py)",
+            ("from c import h as k", "pass"): "import names as they are",
+            ("from c import h", "Output(hidden())"): "'hidden' is written in c.py: import it in this file",
+        }
+        for (imports, body), msg in cases.items():
+            with self.subTest(imports=imports, body=body):
+                path = os.path.join(root, "prog.py")
+                with open(path, "w") as fh:
+                    fh.write(f'"""P."""\nfrom flowgorithm import *\n{imports}\n\n\ndef main():\n    {body}\n')
+                self.assertIn(msg, self.error_of_file(path))
 
 
 class CommandLineTest(unittest.TestCase):

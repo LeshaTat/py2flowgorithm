@@ -14,6 +14,9 @@ Flowgorithm's console statements and its built-in functions, with Flowgorithm's 
   functions (``Int`` cuts off the fraction, ``Char(s, i)`` counts from 0, ``Random(n)`` gives
   0 .. n-1, ``ToFixed(x, 2)`` gives a String, ...).
 
+For tests, ``with console("3", "Ann") as screen:`` runs code as if those answers were typed (and
+``console(..., randoms=[4])`` makes Random() give 4); ``screen.text`` is what Output showed.
+
 Running the Python program then shows what the flowchart will show, and ``py2fprg`` turns it
 into the flowchart shape for shape. Where Flowgorithm would stop with an error (a bad input, an
 index out of range, the square root of a negative number) these functions raise
@@ -21,14 +24,16 @@ index out of range, the square root of a negative number) these functions raise
 """
 from __future__ import annotations
 
+import contextlib as _contextlib
 import decimal as _decimal
+import io as _io
 import math as _math
 import random as _random
 import re as _re
 
 __all__ = ["Output", "Input", "Abs", "Arccos", "Arcsin", "Arctan", "Char", "Cos", "Int", "Len", "Ln",
            "Log", "Log10", "Random", "Sgn", "Sin", "Size", "Sqrt", "Tan", "ToChar", "ToCode", "ToFixed",
-           "ToInteger", "ToReal", "ToString", "pi", "FlowgorithmError"]
+           "ToInteger", "ToReal", "ToString", "pi", "FlowgorithmError", "console"]
 
 pi = _math.pi
 _INT_TEXT = _re.compile(r"[+-]?[0-9]+")
@@ -284,3 +289,45 @@ def Size(array: list) -> int:
     if not isinstance(array, list):
         raise FlowgorithmError(f"Size() needs an array, got {_text_or_type(array)}")
     return len(array)
+
+
+# --------------------------------------------------------------------------- tests
+class _Screen:
+    """What Output showed while a console() was open, in `.text`."""
+
+    def __init__(self) -> None:
+        self.buffer = _io.StringIO()
+
+    @property
+    def text(self) -> str:
+        return self.buffer.getvalue()
+
+
+@_contextlib.contextmanager
+def console(*answers: str, randoms=()):
+    """For tests: run code as if the user typed `answers` (each Input() reads the next one) and
+    Random() returned `randoms`; afterwards `.text` holds what Output showed.
+
+        with console("3", "Ann") as screen:
+            book_seat(booked, names)
+        self.assertIn("Customer name?", screen.text)
+    """
+    from unittest import mock
+    typed, rolls = iter(answers), iter(randoms)
+
+    def read(prompt: str = "") -> str:
+        try:
+            return next(typed)
+        except StopIteration:
+            raise FlowgorithmError("the program asked for more answers than the test typed") from None
+
+    def roll(n: int) -> int:
+        try:
+            return next(rolls) % n
+        except StopIteration:
+            raise FlowgorithmError("the program used more random numbers than the test gave") from None
+
+    screen = _Screen()
+    with mock.patch("builtins.input", side_effect=read), mock.patch("random.randrange", side_effect=roll), \
+            _contextlib.redirect_stdout(screen.buffer):
+        yield screen

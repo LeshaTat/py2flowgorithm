@@ -33,6 +33,7 @@ Every program has the same structure:
 
 What it does: this becomes the program's description in Flowgorithm."""
 from flowgorithm import *
+from seats import SEATS, seat_map    # functions and constants from files in the same folder
 
 MAX_TRIES = 5                        # constants: literal values (copied into the functions using them)
 
@@ -51,7 +52,14 @@ if __name__ == "__main__":
     main()
 ```
 
-Tests go into their own files (`test_*.py`) and are never converted.
+A program can be split into several files: it imports functions and constants from files in its
+folder (`from seats import seat_map`), and those files from others. A flowchart holds all its
+functions, so the imported functions the program uses go into its one flowchart; only the file
+with `main()` is a program (`py2fprg folder/` converts just those).
+
+Tests can sit next to the code they test: `import unittest` and classes deriving from
+`TestCase` are left out of the flowchart. Separate `test_*.py` files work too and are never
+converted.
 
 ## The dialect
 

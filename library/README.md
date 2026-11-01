@@ -66,10 +66,14 @@ rounds a value exactly halfway, ...). Where the library had to guess is listed u
 
 ## Testing a program
 
-A program is ordinary Python, so it can be tested with `unittest`: call its functions, and play
-whole runs with scripted answers by patching `builtins.input` (what `Input` reads with) and
-`random.randrange` (what `Random` uses). See
-[`examples/arith_quiz/test_quiz.py`](../examples/arith_quiz/test_quiz.py).
+A program is ordinary Python, so it can be tested with `unittest`, even in the same file (the
+converter leaves test classes out of the flowchart). `console` plays the user:
+
+```python
+with console("3", "Ann", randoms=[4]) as screen:   # typed answers; values Random() returns
+    book_seat(booked, names)
+self.assertIn("Customer name?", screen.text)       # what Output showed
+```
 
 ## Tests
 

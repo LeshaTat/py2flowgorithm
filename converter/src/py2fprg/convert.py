@@ -8,6 +8,7 @@ ConvertError that says what to write instead.
 from __future__ import annotations
 
 import ast
+import os
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Optional
@@ -303,7 +304,7 @@ class FunctionConverter:
 
     def __init__(self, builder: "ProgramBuilder", func: "FuncInfo"):
         self.b = builder
-        self.m = builder.module
+        self.m = func.module  # the file the function is written in
         self.f = func
         self.vars: dict[str, VarInfo] = {}
         self.ns = Namespace()
@@ -492,6 +493,7 @@ class FunctionConverter:
             return [Breakpoint()]
         fi = self.b.functions.get(name) if name else None
         if fi is not None:
+            self.check_imported(name, v)
             return [Call(self.user_call(v, fi, statement=True).text)]
         if name == "Input":
             raise self.err("Input() reads into a variable: write `x = Input(int)`", s)
@@ -927,6 +929,7 @@ class FunctionConverter:
             return info
         const = self.b.constant(n.id)
         if const is not None:  # a module constant: declared and set in every function that uses it
+            self.check_imported(n.id, n)
             info = VarInfo(n.id, self.ns.reserve(legalize(n.id)), value_type(const), self.next_order(),
                            is_const=True, const_text=literal_text(const), declared=True)
             self.vars[n.id] = info
@@ -936,6 +939,15 @@ class FunctionConverter:
         if n.id in PY_TYPES or n.id in LIBRARY or n.id in ("Output", "Input"):
             raise self.err(f"'{n.id}' is not a value", n)
         raise self.err(f"'{n.id}' is used before it gets a value", n)
+
+    def check_imported(self, name: str, node: ast.AST) -> None:
+        """A function or constant written in another file is used only where that file is imported."""
+        if name in self.m.names:
+            return
+        fi = self.b.functions.get(name)
+        home = fi.module.path if fi is not None else self.b.constant_files.get(name, "")
+        stem = os.path.splitext(os.path.basename(home))[0]
+        raise self.err(f"'{name}' is written in {stem}.py: import it in this file", node, f"from {stem} import {name}")
 
     def e_UnaryOp(self, n: ast.UnaryOp) -> Ex:
         e = self.expr(n.operand)
@@ -1041,6 +1053,7 @@ class FunctionConverter:
         name = n.func.id if isinstance(n.func, ast.Name) else None
         fi = self.b.functions.get(name) if name else None
         if fi is not None:
+            self.check_imported(name, n)
             return self.user_call(n, fi)
         if name in LIBRARY:
             return self.library_call(name, n)

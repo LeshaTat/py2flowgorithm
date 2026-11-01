@@ -104,5 +104,19 @@ class FunctionsTest(unittest.TestCase):
                 call()
 
 
+class ConsoleTest(unittest.TestCase):
+    def test_typed_answers_random_numbers_and_output(self):
+        with fg.console("Ann", "7", randoms=[4, 10]) as screen:
+            fg.Output("Name?")
+            name = fg.Input(str)
+            age = fg.Input(int)
+            fg.Output(name, " ", age + 1, " ", fg.Random(6), " ", fg.Random(6))
+        self.assertEqual(screen.text, "Name?\nAnn 8 4 4\n")
+
+    def test_running_out_of_answers(self):
+        with self.assertRaises(fg.FlowgorithmError), fg.console():
+            fg.Input(int)
+
+
 if __name__ == "__main__":
     unittest.main()
