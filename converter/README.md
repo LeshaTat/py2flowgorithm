@@ -120,9 +120,11 @@ do the same thing:
 ### What can still differ
 
 Flowgorithm's run-time rules are not all documented, so the converter warns where it can; the
-probe flowcharts in [`docs/probe/`](docs/probe) settle these with one run in Flowgorithm:
+probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm:
 
-* `%` with a negative number: Python's `-7 % 2` is `1`, Flowgorithm's is `-1`.
+* `%` with a negative left side: Flowgorithm stops the program ("Illegal Value: The value '-7'
+  is not valid for the function % mod"), Python gives a result (`-7 % 2` is `1`). Keep the left
+  side of `%` at 0 or more (the converter rejects a negative number written out).
 * `and` / `or`: Python skips the right side when the left side decides; Flowgorithm may evaluate
   both. `while i < Size(xs) and xs[i] != x` is warned about: the index must also work when
   `i < Size(xs)` is false, so test it in a nested if (or use a found flag, as in
@@ -147,10 +149,10 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these with one run in Flo
 * The browser viewer [FlowgorithmJS](https://andreaval.github.io/FlowgorithmJS/drawLocal.html)
   opens the generated files too; Flowgorithm itself (Windows, or the macOS port
   [jostasik/Flowgorithm-macOS](https://github.com/jostasik/Flowgorithm-macOS)) is the final proof.
-* `docs/probe/` — four small flowcharts that show, run once in real Flowgorithm, the run-time
-  rules the library and `fprg_run.py` had to guess (how Reals are printed, `ToFixed` rounding,
-  `%`, `and`/`or`, String order, the For counter, array start values, Integer size). Its README
-  says what each output line means.
+* `docs/probe/` — two small flowcharts that show, run in real Flowgorithm, the run-time rules
+  the library and `fprg_run.py` had to guess (how Reals are printed, `ToFixed` rounding, `%`,
+  `and`/`or`, String order, the For counter, array start values, Integer size). Its README says
+  what each output line means and lists the answers found so far.
 
 ## Files
 

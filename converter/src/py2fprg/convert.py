@@ -924,6 +924,14 @@ class FunctionConverter:
         for e, node in ((a, n.left), (b, n.right)):
             if not is_numeric(e.type):
                 raise self.err(f"{sym} needs numbers, not {type_name(e.type)}", node)
+        if op is ast.Mod:
+            try:
+                left = literal_value(n.left)
+            except ValueError:
+                left = None
+            if isinstance(left, (int, float)) and not isinstance(left, bool) and left < 0:
+                raise self.err("Flowgorithm stops on % with a negative left side", n.left,
+                               "Flowgorithm's mod works on numbers from 0 up")
         if op is ast.Pow:
             # Integer only for a whole-number exponent written out (n ** 2): 2 ** n is a Real for n < 0
             whole = isinstance(n.right, ast.Constant) and type(n.right.value) is int

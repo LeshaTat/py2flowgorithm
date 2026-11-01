@@ -44,8 +44,10 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   of a non-terminating Real. From magnitude 1e15 on a Real is written with an exponent
   (``1E+15``, ``-1.5E+15``), as .NET does. Booleans print as ``true``/``false``.
 * ``&`` and ``ToString`` use that same formatting.
-* ``/`` always yields a Real. ``%``/``mod`` is a remainder with the sign of the
-  dividend (as in C#/VB.NET), also for Reals. ``^`` yields an Integer when both operands
+* ``/`` always yields a Real. ``%``/``mod`` stops on a negative left side, as
+  Flowgorithm does (checked: "The value '-7' is not valid for the function % mod");
+  otherwise it is a remainder with the sign of the dividend (as in C#/VB.NET), also
+  for Reals; a negative right side is still a guess. ``^`` yields an Integer when both operands
   are Integers and the exponent is not negative, otherwise a Real. Integers are
   unbounded (Flowgorithm's are fixed-width, so very large values would differ).
   ``a ^ b ^ c`` is evaluated left to right; Flowgorithm's associativity is undocumented.
@@ -1052,6 +1054,9 @@ class Machine:
             return self._power(a, b)
         if op in ("/", "%") and b == 0:
             raise FprgRuntimeError(f"division by zero in '{op}'")
+        if op == "%" and a < 0:  # Flowgorithm: "The value '-7' is not valid for the function % mod."
+            raise FprgRuntimeError(f"the value {format_value(a)} is not valid for '%': Flowgorithm's mod "
+                                   "needs a left side of 0 or more")
         try:
             if op == "+":
                 return a + b

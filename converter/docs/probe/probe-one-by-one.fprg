@@ -1,0 +1,110 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Probe: one check per run"/>
+        <attribute name="authors" value="py2fprg"/>
+        <attribute name="about" value="Run me once per number; an error message is an answer too."/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="choice, k, big, round" type="Integer" array="False" size=""/>
+            <declare name="ok" type="Boolean" array="False" size=""/>
+            <output expression="&quot;Which check? Type a number from 1 to 10.&quot;" newline="True"/>
+            <input variable="choice"/>
+            <if expression="choice == 1">
+                <then>
+                    <output expression="&quot;C2 &quot; &amp; (7 % -2)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 2">
+                <then>
+                    <output expression="&quot;C3 &quot; &amp; (7.5 % 2)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 3">
+                <then>
+                    <output expression="&quot;E1 &quot; &amp; (&quot;B&quot; &lt; &quot;a&quot;)" newline="True"/>
+                    <output expression="&quot;E2 &quot; &amp; (&quot;apple&quot; &lt; &quot;Banana&quot;)" newline="True"/>
+                    <output expression="&quot;E3 &quot; &amp; (&quot;10&quot; &lt; &quot;9&quot;)" newline="True"/>
+                    <output expression="&quot;E4 &quot; &amp; (&quot;a&quot; == &quot;A&quot;)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 4">
+                <then>
+                    <assign variable="ok" expression="true"/>
+                    <output expression="ok" newline="True"/>
+                    <output expression="&quot;F1 &quot; &amp; (ok)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 5">
+                <then>
+                    <output expression="&quot;F2 &quot; &amp; (ToString(5 &gt; 3))" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 6">
+                <then>
+                    <assign variable="k" expression="-3.7"/>
+                    <output expression="&quot;I2 &quot; &amp; (k)" newline="True"/>
+                    <assign variable="k" expression="3.7"/>
+                    <output expression="&quot;I3 &quot; &amp; (k)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 7">
+                <then>
+                    <output expression="&quot;I4 &quot; &amp; (ToInteger(&quot;  42 &quot;))" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 8">
+                <then>
+                    <declare name="xs" type="Integer" array="True" size="3"/>
+                    <declare name="rs" type="Real" array="True" size="2"/>
+                    <declare name="ss" type="String" array="True" size="2"/>
+                    <declare name="bs" type="Boolean" array="True" size="2"/>
+                    <output expression="&quot;J1 &quot; &amp; (xs[0])" newline="True"/>
+                    <output expression="&quot;J2 &quot; &amp; (rs[1])" newline="True"/>
+                    <output expression="&quot;J3 &quot; &amp; (&quot;[&quot; &amp; ss[0] &amp; &quot;]&quot;)" newline="True"/>
+                    <output expression="&quot;J4 &quot; &amp; (bs[1])" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 9">
+                <then>
+                    <for variable="round" start="1" end="2" direction="inc" step="1">
+                        <declare name="row" type="Integer" array="True" size="2"/>
+                        <if expression="round == 1">
+                            <then>
+                                <assign variable="row[0]" expression="5"/>
+                                <output expression="&quot;K1 round 1: row[0] set to 5&quot;" newline="True"/>
+                            </then>
+                            <else>
+                                <output expression="&quot;K2 round 2: row[0] is &quot; &amp; (row[0])" newline="True"/>
+                            </else>
+                        </if>
+                    </for>
+                </then>
+                <else/>
+            </if>
+            <if expression="choice == 10">
+                <then>
+                    <assign variable="big" expression="2147483647"/>
+                    <assign variable="big" expression="big + 1"/>
+                    <output expression="&quot;L1 &quot; &amp; (big)" newline="True"/>
+                    <assign variable="big" expression="big * big"/>
+                    <output expression="&quot;L2 &quot; &amp; (big)" newline="True"/>
+                    <assign variable="big" expression="big * 2"/>
+                    <output expression="&quot;L3 &quot; &amp; (big)" newline="True"/>
+                </then>
+                <else/>
+            </if>
+            <output expression="&quot;Z end&quot;" newline="True"/>
+        </body>
+    </function>
+</flowgorithm>

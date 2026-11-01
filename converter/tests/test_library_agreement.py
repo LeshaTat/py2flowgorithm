@@ -48,6 +48,10 @@ class LibraryAgreesWithInterpreterTest(unittest.TestCase):
             fg.ToFixed(1.5, 0)
         with self.assertRaises(fprg_run.FprgRuntimeError):
             fprg_run.evaluate("ToFixed(1.5, 0)")
+        # and "The value '-7' is not valid for the function % mod." (Python's % cannot be changed:
+        # the converter rejects a negative left side written out, the README warns about the rest)
+        with self.assertRaises(fprg_run.FprgRuntimeError):
+            fprg_run.evaluate("-7 % 2")
 
     def test_formatting(self):
         for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, -2.5e15, 1234567890123456.8, 1e16, 123456789.0, True, "x"):
