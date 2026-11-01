@@ -94,7 +94,7 @@ class FunctionsTest(unittest.TestCase):
                      lambda: fg.Size("abc"), lambda: fg.Char("ab", 1.0),
                      # the conversions take what Flowgorithm documents: text, or a number for ToString
                      lambda: fg.ToInteger(7.9), lambda: fg.ToReal(5), lambda: fg.ToString(True),
-                     lambda: fg.ToString("x")):
+                     lambda: fg.ToString("x"), lambda: fg.ToFixed(1.5, 0)):
             with self.assertRaises(fg.FlowgorithmError):
                 call()
 

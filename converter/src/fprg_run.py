@@ -63,7 +63,8 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   Integer assigned to a Real converts; any other mismatch is an error.
 * ``Int`` truncates toward zero. ``Ln`` and ``Log`` are both the natural logarithm,
   ``Log10`` the common one (matching .NET's ``Math.Log``). ``ToFixed`` rounds like
-  Python's ``format`` (round-half-even on the binary value). ``Random(n)`` is an
+  Python's ``format`` (round-half-even on the binary value) and needs at least 1 digit
+  (checked: Flowgorithm rejects ``ToFixed(x, 0)``). ``Random(n)`` is an
   integer in ``0 .. n-1``; ``EOF()`` is always ``true`` (there is no file input).
 * Input: Integer accepts only integer text (``"3.0"`` is rejected), Real any float
   text, Boolean ``true``/``false`` case-insensitively, String the line as typed;
@@ -1208,8 +1209,9 @@ class Machine:
             if lower == "tofixed":
                 v = num(0)
                 digits = integer(1)
-                if digits < 0:
-                    raise FprgRuntimeError(f"ToFixed() needs a non-negative number of decimals, got {digits}")
+                if digits < 1:  # Flowgorithm: "The value '0' is not valid for the function ToFixed."
+                    raise FprgRuntimeError(f"the value {digits} is not valid for ToFixed(): it shows at least 1 "
+                                           "digit after the point")
                 return f"{float(v):.{digits}f}"
             if lower == "tointeger":
                 v = args[0]

@@ -1024,6 +1024,14 @@ class FunctionConverter:
                                ARG_HINTS.get(name) or (CUT if kind == INTEGER and e.type == REAL else ""))
             texts.append(e.text)
             types.append(e.type)
+        if name == "ToFixed":
+            try:
+                digits = literal_value(n.args[1])
+            except ValueError:
+                digits = None
+            if type(digits) is int and digits < 1:
+                raise self.err("ToFixed() shows at least 1 digit after the point (Flowgorithm rejects 0)",
+                               n.args[1], "for a whole number, round with Int(x + 0.5)")
         return Ex(f"{name}({', '.join(texts)})", P_ATOM, result or types[0])
 
     def user_call(self, n: ast.Call, fi: "FuncInfo", statement: bool = False) -> Ex:

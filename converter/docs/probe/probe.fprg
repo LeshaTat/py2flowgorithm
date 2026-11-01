@@ -18,7 +18,7 @@
             <output expression="&quot;A6 &quot; &amp; (1 / 3 * 3)" newline="True"/>
             <output expression="&quot;A7 &quot; &amp; (0.1 * 0.0001)" newline="True"/>
             <output expression="&quot;B1 &quot; &amp; (ToFixed(2.25, 1))" newline="True"/>
-            <output expression="&quot;B2 &quot; &amp; (ToFixed(2.5, 0))" newline="True"/>
+            <output expression="&quot;B2 &quot; &amp; (ToFixed(-2.25, 1))" newline="True"/>
             <output expression="&quot;B3 &quot; &amp; (ToFixed(0.125, 2))" newline="True"/>
             <output expression="&quot;B4 &quot; &amp; (ToFixed(2.675, 2))" newline="True"/>
             <output expression="&quot;B5 &quot; &amp; (ToFixed(1.005, 2))" newline="True"/>

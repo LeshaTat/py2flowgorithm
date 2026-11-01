@@ -221,10 +221,11 @@ def ToCode(s: str) -> int:
 
 
 def ToFixed(n, decimals: int) -> str:
-    """A String with exactly `decimals` digits after the point: ToFixed(2.5, 2) is "2.50"."""
+    """A String with exactly `decimals` digits after the point (at least 1): ToFixed(2.5, 2) is "2.50"."""
     n, decimals = _number("ToFixed", n), _integer("ToFixed", decimals)
-    if decimals < 0:
-        raise FlowgorithmError(f"ToFixed() needs a non-negative number of decimals, got {decimals}")
+    if decimals < 1:  # Flowgorithm: "The value '0' is not valid for the function ToFixed."
+        raise FlowgorithmError(f"the value {decimals} is not valid for ToFixed(): it shows at least 1 digit "
+                               "after the point")
     return f"{float(n):.{decimals}f}"
 
 

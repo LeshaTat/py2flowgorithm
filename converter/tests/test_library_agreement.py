@@ -42,6 +42,13 @@ class LibraryAgreesWithInterpreterTest(unittest.TestCase):
                 ours = eval("fg." + python if not python.startswith("fg.") else python, {"fg": fg})
                 self.assertEqual(ours, fprg_run.evaluate(case))
 
+    def test_errors(self):
+        # checked in real Flowgorithm: "The value '0' is not valid for the function ToFixed."
+        with self.assertRaises(fg.FlowgorithmError):
+            fg.ToFixed(1.5, 0)
+        with self.assertRaises(fprg_run.FprgRuntimeError):
+            fprg_run.evaluate("ToFixed(1.5, 0)")
+
     def test_formatting(self):
         for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, -2.5e15, 1234567890123456.8, 1e16, 123456789.0, True, "x"):
             with self.subTest(value=value):

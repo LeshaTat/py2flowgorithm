@@ -39,7 +39,7 @@ def probe_main() -> list:
         show("A1", "7 / 3"), show("A2", "0.1 + 0.2"), show("A3", "2 / 3"), show("A4", "10.0 ^ 15"),
         show("A5", "123456789.0 * 10000000"), show("A6", "1 / 3 * 3"), show("A7", "0.1 * 0.0001"),
         # B: ToFixed on values exactly halfway, and on values just below halfway in binary
-        show("B1", "ToFixed(2.25, 1)"), show("B2", "ToFixed(2.5, 0)"), show("B3", "ToFixed(0.125, 2)"),
+        show("B1", "ToFixed(2.25, 1)"), show("B2", "ToFixed(-2.25, 1)"), show("B3", "ToFixed(0.125, 2)"),
         show("B4", "ToFixed(2.675, 2)"), show("B5", "ToFixed(1.005, 2)"),
         # C: % with negative numbers
         show("C1", "-7 % 2"), show("C2", "7 % -2"), show("C3", "-7.5 % 2"),
