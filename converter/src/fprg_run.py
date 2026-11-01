@@ -58,8 +58,10 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   runs while ``variable <= end`` (``>= end`` for ``dec``) and adds (subtracts) step
   after each pass; the body may change the variable, and after the loop it holds the
   first value that failed the test. ``step`` must be positive.
-* Executing a ``declare`` again (for instance inside a loop body) re-initialises the
-  variable; arrays are re-created with the current size.
+* A declared variable and every element of a new array hold no value until something is
+  stored into them; reading one stops the program (checked: "Variable Not Initialized").
+  Executing a ``declare`` again (for instance inside a loop body) re-creates the variable;
+  arrays are re-created with the current size.
 * Assigning a Real to an Integer variable (or parameter) truncates toward zero; an
   Integer assigned to a Real converts; any other mismatch is an error.
 * ``Int`` truncates toward zero. ``Ln`` and ``Log`` are both the natural logarithm,
@@ -130,6 +132,19 @@ class FprgSyntaxError(FprgRuntimeError):
 # ---------------------------------------------------------------------------
 # Values
 # ---------------------------------------------------------------------------
+
+class _Unset:
+    """The value of a variable or array element nothing was stored into yet: reading it stops the
+    program, as in Flowgorithm (checked: "Variable Not Initialized ... The variable 'xs' was not
+    initialized" for an element of a new array)."""
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+UNSET = _Unset()
+
 
 class FArray(list):
     """A Flowgorithm array: a list that knows its element type (passed by reference)."""
@@ -881,9 +896,9 @@ class Machine:
                     raise FprgRuntimeError(f"array size of '{name}' must be an Integer, got {_describe(n)}")
                 if n < 0:
                     raise FprgRuntimeError(f"array size of '{name}' is negative ({n})")
-                value = FArray([DEFAULTS[st.type]] * n, st.type)
+                value = FArray([UNSET] * n, st.type)
             else:
-                value = DEFAULTS[st.type]
+                value = UNSET
             frame.vars[lower] = Slot(name, st.type, st.is_array, value)
 
     def _x_assign(self, st: Assign, frame: Frame) -> None:
@@ -1010,14 +1025,21 @@ class Machine:
         if tag == "str" or tag == "bool":
             return node[1]
         if tag == "var":
-            return self._slot(node[2], node[1], frame).value
+            value = self._slot(node[2], node[1], frame).value
+            if value is UNSET:
+                raise FprgRuntimeError(f"the variable '{node[1]}' was not initialized: nothing was stored into it")
+            return value
         if tag == "bin":
             return real15(self._binary(node[1], self._eval(node[2], frame), self._eval(node[3], frame)))
         if tag == "call":
             return self._call(node, frame, as_statement=False)
         if tag == "index":
             slot = self._slot(node[2], node[1], frame)
-            return slot.value[self._element_index(slot, node[1], node[3], frame)]
+            index = self._element_index(slot, node[1], node[3], frame)
+            if slot.value[index] is UNSET:
+                raise FprgRuntimeError(f"the variable '{node[1]}' was not initialized: nothing was stored into "
+                                       f"{node[1]}[{index}]")
+            return slot.value[index]
         if tag == "neg":
             v = self._eval(node[1], frame)
             if not _is_number(v):
@@ -1158,6 +1180,9 @@ class Machine:
         if slot.is_array:
             raise FprgRuntimeError(f"return variable '{fn.return_var}' of '{fn.name}' is an array",
                                    function=fn.name, path=fn.path)
+        if slot.value is UNSET:
+            raise FprgRuntimeError(f"function '{fn.name}' ends without storing its result in "
+                                   f"'{fn.return_var}'", function=fn.name, path=fn.path)
         return coerce(slot.value, fn.type, f"the {fn.type} result of '{fn.name}'")
 
     def _intrinsic(self, lower: str, args: list):
@@ -1380,10 +1405,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if machine.output and not machine.output.endswith("\n"):
             print()
         print("--- variables of Main ---")
+        def shown(v) -> str:
+            return "(no value)" if v is UNSET else format_value(v)
+
         for name, value in machine.variables.items():
-            shown = f"[{', '.join(format_value(v) for v in value)}]" if isinstance(value, FArray) \
-                else format_value(value)
-            print(f"{name} = {shown}")
+            text = f"[{', '.join(shown(v) for v in value)}]" if isinstance(value, FArray) else shown(value)
+            print(f"{name} = {text}")
     return 0
 
 

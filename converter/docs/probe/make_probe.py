@@ -136,10 +136,12 @@ def main() -> None:
         with open(os.path.join(HERE, name + ".fprg"), "w", encoding="utf-8", newline="\n") as fh:
             fh.write(xml)
         for answers in runs:
+            machine = fprg_run.Machine(xml, answers)
             try:
-                out = fprg_run.run_string(xml, answers)
-            except fprg_run.FprgRuntimeError as e:
-                out = f"(stops: {e})\n"
+                machine.run()
+                out = machine.output
+            except fprg_run.FprgRuntimeError as e:  # keep what was printed before the stop
+                out = machine.output + f"(stops: {e})\n"
             typed = f" (typed {answers[0]})" if answers else ""
             expected.append(f"== {name}.fprg{typed}\n{out}")
         print(f"wrote {os.path.relpath(os.path.join(HERE, name + '.fprg'))}")

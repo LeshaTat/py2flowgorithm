@@ -45,16 +45,11 @@ Z end
 
 == probe-array-start.fprg
 A11 2.00000000000001
-J1 0
-J2 0
-J3 []
-J4 false
-Z end
+(stops: the variable 'xs' was not initialized: nothing was stored into xs[0] (in function Main, at Main/body[5]/output))
 
 == probe-redeclare.fprg
 K1 round 1: row[0] set to 5
-K2 round 2: row[0] is 0
-Z end
+(stops: the variable 'row' was not initialized: nothing was stored into row[0] (in function Main, at Main/body[1]/for[1]/if/else[0]/output))
 
 == probe-overflow.fprg
 L1 2147483648

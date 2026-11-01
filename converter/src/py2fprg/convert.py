@@ -25,7 +25,6 @@ PY_TYPES = {"int": INTEGER, "float": REAL, "str": STRING, "bool": BOOLEAN}
 COMPARE_OP = {ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">="}
 FLIP_COMPARE = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.GtE, ast.LtE: ast.Gt, ast.Gt: ast.LtE,
                 ast.GtE: ast.Lt}
-DEFAULT_FILL = {INTEGER: 0, REAL: 0.0, STRING: "", BOOLEAN: False}
 OPERATORS = {ast.Add: ("+", P_ADD), ast.Sub: ("-", P_ADD), ast.Mult: ("*", P_MUL), ast.Div: ("/", P_MUL),
              ast.Mod: ("%", P_MUL), ast.Pow: ("^", P_POW)}
 
@@ -195,6 +194,35 @@ def can_fail(node: ast.AST, functions) -> str:
     return ""
 
 
+def fills_every_element(loop: Optional[ast.stmt], array: str, size: ast.expr) -> bool:
+    """Is `loop` a for loop over every index of the new `array` (range(size) or range(Size(array)))
+    that stores into array[i] before anything reads the array? Then it needs no filling first."""
+    if not (isinstance(loop, ast.For) and isinstance(loop.target, ast.Name) and not loop.orelse):
+        return False
+    it = loop.iter
+    if not (isinstance(it, ast.Call) and isinstance(it.func, ast.Name) and it.func.id == "range"
+            and not it.keywords and 1 <= len(it.args) <= 2):
+        return False
+    if len(it.args) == 2 and not (isinstance(it.args[0], ast.Constant) and it.args[0].value == 0
+                                  and type(it.args[0].value) is int):
+        return False
+    stop = it.args[-1]
+    measured = (isinstance(stop, ast.Call) and isinstance(stop.func, ast.Name) and stop.func.id == "Size"
+                and len(stop.args) == 1 and isinstance(stop.args[0], ast.Name) and stop.args[0].id == array)
+    if not (measured or ast.dump(stop) == ast.dump(size)):
+        return False
+    index = loop.target.id
+    for st in loop.body:
+        target = st.targets[0] if isinstance(st, ast.Assign) and len(st.targets) == 1 else None
+        if (isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name) and target.value.id == array
+                and isinstance(target.slice, ast.Name) and target.slice.id == index
+                and first_read(st.value, {array}) is None):
+            return True
+        if first_read(st, {array}) is not None:
+            return False
+    return False
+
+
 def is_do(s: ast.stmt) -> bool:
     return isinstance(s, ast.While) and isinstance(s.test, ast.Constant) and s.test.value is True
 
@@ -285,6 +313,8 @@ class FunctionConverter:
         self.ret_type: FgType = func.ret_type
         self.loop_vars: list[str] = []  # variables of the enclosing for loops
         self.loop_depth = 0  # how many loops the statement being converted is in
+        self.following: dict[int, ast.stmt] = {}  # id(statement) -> the statement after it in its block
+        self.fill_var: Optional[str] = None  # the counter of the loops that fill new arrays
         # loop variables whose for loop has ended (on some path) and that got no new value since, with
         # the line of that loop: they hold Flowgorithm's final counter value, one step past Python's
         self.after_loop: dict[str, int] = {}
@@ -422,6 +452,7 @@ class FunctionConverter:
 
     # ------------------------------------------------------------- statements
     def block(self, stmts: list, start_line: int, end_line: Optional[int], indent: int) -> list:
+        self.following.update((id(a), b) for a, b in zip(stmts, stmts[1:]))
         out: list = []
         for item in self.attach_comments(stmts, start_line, end_line, indent):
             out += self.stmt(item) if isinstance(item, ast.AST) else [item]
@@ -632,23 +663,36 @@ class FunctionConverter:
             return [Declare([var.fg], elem, True, str(len(elems)))] + [
                 Assign(f"{var.fg}[{i}]", e.text) for i, e in enumerate(elems)]
         lst, n = (value.left, value.right) if isinstance(value.left, ast.List) else (value.right, value.left)
-        try:
-            if len(lst.elts) != 1:
-                raise ValueError
-            fill = literal_value(lst.elts[0])
-        except ValueError:
+        if len(lst.elts) != 1:
             raise self.err("an array is made from one value: `[0] * n`, `[0.0] * n`, `[\"\"] * n` or "
-                           "`[False] * n`", value) from None
-        elem = ann.elem if ann is not None else value_type(fill)
-        if fill != DEFAULT_FILL[elem] or (type(fill) is bool) != (elem == BOOLEAN):
-            raise self.err(f"an array of {type_name(elem)} starts out as {literal_text(DEFAULT_FILL[elem])} in "
-                           f"Flowgorithm: write [{repr(DEFAULT_FILL[elem]) if elem != STRING else chr(34) * 2}] * n",
-                           lst.elts[0], "then set other values in a loop")
+                           "`[False] * n`", value)
+        fill = self.expr(lst.elts[0])
+        if isinstance(fill.type, ArrayT):
+            raise self.err("an array is made from one value, not from an array", lst.elts[0])
+        elem = ann.elem if ann is not None else fill.type
+        self.check_store(elem, fill.type, lst.elts[0], f"an element of {name}",
+                         f"make it an array of Reals ({name} = [0.0] * n)")
         size = self.expr(n)
         if size.type != INTEGER:
             raise self.err("the size of an array is an Integer", n)
         var = self.new_var(name, ArrayT(elem), s, declared=ann is not None)
-        return [Declare([var.fg], elem, True, size.text)]
+        shapes: list = [Declare([var.fg], elem, True, size.text)]
+        # a new Flowgorithm array holds no values (reading one stops the program), while Python's
+        # [0] * n holds zeros: fill it, unless the next statement fills every element first anyway
+        if not fills_every_element(self.following.get(id(s)), name, n):
+            counter = self.fill_counter()
+            shapes.append(For(counter, "0", plus(size, -1), "inc", "1",
+                              [Assign(f"{var.fg}[{counter}]", fill.text)]))
+        return shapes
+
+    def fill_counter(self) -> str:
+        """The Integer variable the loops filling new arrays count with: one per function, named to
+        clash with no name used in the function."""
+        if self.fill_var is None:
+            used = frozenset(legalize(n.id).lower() for n in ast.walk(self.f.node) if isinstance(n, ast.Name))
+            self.fill_var = self.ns.reserve("fill", avoid=used)
+            self.vars["<fill>"] = VarInfo("<fill>", self.fill_var, INTEGER, self.next_order())
+        return self.fill_var
 
     def element(self, sub: ast.Subscript) -> tuple[str, str]:
         if not isinstance(sub.value, ast.Name):

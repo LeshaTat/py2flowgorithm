@@ -4,9 +4,9 @@
         <attribute name="name" value="Arithmetic Quiz"/>
         <attribute name="authors" value="alekseitatuzov"/>
         <attribute name="about" value="Arithmetic Quiz.&#13;&#10;&#13;&#10;The player chooses how many questions to answer, solves random addition, subtraction&#13;&#10;and multiplication problems and gets a grade. test_quiz.py checks the functions and&#13;&#10;plays whole games with scripted answers."/>
-        <attribute name="saved" value="2026-10-30 07:38:32 PM"/>
-        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozODozMiBQTTsw"/>
-        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMC0zMDswNzozODozMiBQTTsxOzA="/>
+        <attribute name="saved" value="2026-11-01 04:27:35 PM"/>
+        <attribute name="created" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMS0wMTswNDoyNzozNSBQTTsw"/>
+        <attribute name="edited" value="YWxla3NlaXRhdHV6b3Y7QWxla3NlaXMtTWFjQm9vay1Qcm87MjAyNi0xMS0wMTswNDoyNzozNSBQTTsxOzA="/>
     </attributes>
     <function name="Main" type="None" variable="">
         <parameters/>
@@ -246,10 +246,13 @@
         </parameters>
         <body>
             <comment text="Ask `count` random questions; the result is the number of correct answers."/>
-            <declare name="score, i, kind, maxNumber, a, b, answer" type="Integer" array="False" size=""/>
+            <declare name="score, fill, i, kind, maxNumber, a, b, answer" type="Integer" array="False" size=""/>
             <assign variable="maxNumber" expression="12"/>
             <comment text="which questions were answered correctly"/>
             <declare name="results" type="Boolean" array="True" size="count"/>
+            <for variable="fill" start="0" end="count - 1" direction="inc" step="1">
+                <assign variable="results[fill]" expression="false"/>
+            </for>
             <assign variable="score" expression="0"/>
             <for variable="i" start="0" end="count - 1" direction="inc" step="1">
                 <comment text="ADD, MULTIPLY or SUBTRACT"/>

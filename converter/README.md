@@ -61,7 +61,7 @@ Tests go into their own files (`test_*.py`) and are never converted.
 | `Output("Name? ", newline=False)` | Output with the newline unticked |
 | `n = Input(int)`, `Input(float)`, `Input(str)`, `Input(bool)` | Input into an Integer / Real / String / Boolean variable |
 | `x = 5`, `x = 2.5`, `x: float = 0`, `x += 1` | Declare (at the top, one per type) + Assign |
-| `xs = [0] * n`, `[0.0] * n`, `[""] * n`, `[False] * n`, `xs: list[int] = [0] * n` | Declare an array of size `n` |
+| `xs = [0] * n` (any value: `[0.0] * n`, `[""] * n`, `[False] * n`, `[1] * n`), `xs: list[int] = [0] * n` | Declare an array of size `n`, then a For loop that fills it (left out when the next loop stores into every element first) |
 | `xs = [3, 1, 2]` | Declare an array of size 3 + Assign each element |
 | `xs[i] = value`, `xs[i] = Input(int)` | Assign / Input into an element |
 | `if ...: elif ...: else:` | If (an elif is an If in the False branch) |
@@ -111,7 +111,8 @@ do the same thing:
   with `n = n - 1` inside is reported; `Size(xs)` is fine, an array keeps its size).
 * `Input(...)` names the type of the variable it reads into (`x = Input(float)` for a Real `x`),
   because Flowgorithm's Input reads whatever its variable holds.
-* Arrays have a fixed size and start out as 0 / 0.0 / "" / false; arrays are not copied or
+* Arrays have a fixed size. A new Flowgorithm array holds no values (reading one stops the
+  program, checked), so `[v] * n` becomes a Declare plus a loop that fills it. Arrays are not copied or
   returned, and are made once, outside loops (Flowgorithm declares them where they are made).
 * There is no `//` (write `Int(a / b)`), no f-strings (pass several values to `Output`), no
   `print`/`input`/`len`/`int`/`str` (use the library), no methods, slices, tuples, dictionaries,

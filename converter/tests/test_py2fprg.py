@@ -218,7 +218,16 @@ class StatementTest(unittest.TestCase):
         self.assertIn('<declare name="ys" type="Real" array="True" size="2"/>\n<assign variable="ys[0]" '
                       'expression="1.5"/>', body)
         self.assertIn('<input variable="xs[0]"/>', body)
-        for code, msg in {"xs = [1] * 3": "starts out as 0", "xs = [0] * 3\nxs[0] = 0.5": "is an Integer but gets",
+        # a new Flowgorithm array holds no values: [v] * n is filled by a loop after its Declare ...
+        self.assertIn('<declare name="xs" type="Integer" array="True" size="n"/>\n'
+                      '<for variable="fill" start="0" end="n - 1" direction="inc" step="1">\n'
+                      '<assign variable="xs[fill]" expression="0"/>\n</for>', body)
+        self.assertIn('<assign variable="ws[fill]" expression="7"/>', main_body("ws = [7] * 3\nOutput(ws[0])"))
+        # ... unless the next loop stores into every element before reading the array
+        filled = main_body("n = 3\nvs = [0.0] * n\nfor i in range(n):\n    Output(i)\n    vs[i] = Input(float)")
+        self.assertNotIn("fill", filled)
+        self.assertIn("fill", main_body("n = 3\nvs = [0] * n\nfor i in range(n):\n    vs[i] = vs[i] + 1"))
+        for code, msg in {"xs = [0] * 3\nxs[0] = 0.5": "is an Integer but gets",
                           "xs = [0] * 3\nOutput(xs[-1])": "no negative indexes", "xs = [0] * 3\nys = xs": "cannot be copied",
                           "xs = []": "needs a size", "s = \"ab\"\nOutput(s[0])": "Char(text, i)",
                           "for k in range(2):\n    row = [0] * 3": "the array 'row' is made inside a loop"}.items():

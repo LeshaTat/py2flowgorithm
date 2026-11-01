@@ -271,10 +271,11 @@ class FormatTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class StatementTest(unittest.TestCase):
-    def test_declare_defaults_and_output(self):
-        body = (decl("n", "Integer") + decl("r", "Real") + decl("s", "String") + decl("b", "Boolean")
-                + out('n & "|" & r & "|" & s & "|" & b'))
-        self.assertEqual(run(body), "0|0||false\n")
+    def test_declared_variables_hold_no_value(self):
+        for kind in ("Integer", "Real", "String", "Boolean"):
+            with self.assertRaises(FprgRuntimeError, msg=kind) as cm:
+                run(decl("v", kind) + out("v"))
+            self.assertIn("'v' was not initialized", str(cm.exception))
 
     def test_declare_comma_list_and_case_insensitive_names(self):
         body = decl("Count, Total", "Integer") + assign("count", "3") + assign("TOTAL", "COUNT * 2") + out("Total")
@@ -312,11 +313,11 @@ class StatementTest(unittest.TestCase):
 
     def test_if_condition_must_be_boolean(self):
         with self.assertRaises(FprgRuntimeError) as cm:
-            run(decl("x", "Integer") + if_("x", out("1")))
+            run(decl("x", "Integer") + assign("x", "1") + if_("x", out("1")))
         self.assertIn("must be Boolean", str(cm.exception))
 
     def test_while(self):
-        body = (decl("i, sum", "Integer") + assign("i", "1")
+        body = (decl("i, sum", "Integer") + assign("i", "1") + assign("sum", "0")
                 + while_("i <= 10", assign("sum", "sum + i") + assign("i", "i + 1"))
                 + out('"sum=" & sum & " i=" & i'))
         self.assertEqual(run(body), "sum=55 i=11\n")
@@ -382,11 +383,14 @@ class StatementTest(unittest.TestCase):
         self.assertEqual(m.variables["n"], 3)
         self.assertEqual(m.variables["i"], 3)
 
-    def test_array_defaults_per_type(self):
-        body = (decl("s", "String", array=True, size="2") + decl("r", "Real", array=True, size="1")
-                + decl("b", "Boolean", array=True, size="1")
-                + out('"[" & s[0] & s[1] & "]" & r[0] & b[0]'))
-        self.assertEqual(run(body), "[]0false\n")
+    def test_new_array_elements_hold_no_value(self):
+        # checked in Flowgorithm: "Variable Not Initialized ... The variable 'xs' was not initialized"
+        for kind in ("Integer", "Real", "String", "Boolean"):
+            with self.assertRaises(FprgRuntimeError, msg=kind) as cm:
+                run(decl("xs", kind, array=True, size="2") + out("xs[1]"))
+            self.assertIn("'xs' was not initialized", str(cm.exception))
+        body = decl("xs", "Integer", array=True, size="2") + assign("xs[0]", "4") + out("xs[0]")
+        self.assertEqual(run(body), "4\n")
 
     def test_array_element_conversion(self):
         body = decl("r", "Real", array=True, size="1") + assign("r[0]", "3") + out("r[0] / 2")
@@ -528,15 +532,15 @@ class StatementTest(unittest.TestCase):
         self.assertEqual(run(body), "1\n2\n")
 
     def test_error_location(self):
-        body = (decl("i", "Integer")
+        body = (decl("i", "Integer") + assign("i", "0")
                 + while_("i < 3", if_("i == 1", assign("missing", "1")) + assign("i", "i + 1")))
         with self.assertRaises(FprgRuntimeError) as cm:
             run(body)
         e = cm.exception
         self.assertEqual(e.function, "Main")
-        self.assertEqual(e.path, "Main/body[1]/while[0]/if/then[0]/assign")
+        self.assertEqual(e.path, "Main/body[2]/while[0]/if/then[0]/assign")
         self.assertEqual(str(e), "variable 'missing' is not declared in function Main "
-                                 "(in function Main, at Main/body[1]/while[0]/if/then[0]/assign)")
+                                 "(in function Main, at Main/body[2]/while[0]/if/then[0]/assign)")
 
     def test_error_inside_function_reports_that_function(self):
         f = func("Boom", "None", "", param("n", "Integer"), out("n / 0"))
@@ -549,16 +553,19 @@ class StatementTest(unittest.TestCase):
         with self.assertRaises(FprgRuntimeError) as cm:
             run(while_("true", ""), max_steps=500)
         self.assertIn("more than 500 statements", str(cm.exception))
-        m = Machine(prog(decl("i", "Integer") + while_("i < 10", assign("i", "i + 1"))))
+        m = Machine(prog(decl("i", "Integer") + assign("i", "0") + while_("i < 10", assign("i", "i + 1"))))
         m.run()
-        # declare, the while itself (its first test), then 10 x (assign + the next loop test)
-        self.assertEqual(m.steps, 1 + 1 + 10 * 2)
+        # declare, assign, the while itself (its first test), then 10 x (assign + the next loop test)
+        self.assertEqual(m.steps, 1 + 1 + 1 + 10 * 2)
 
-    def test_redeclare_resets(self):
+    def test_redeclare_creates_the_variable_again(self):
         body = (decl("i, x", "Integer")
-                + for_("i", "1", "2", decl("x", "Integer") + out("x", newline=False) + assign("x", "9"))
+                + for_("i", "1", "2", decl("x", "Integer") + assign("x", "i") + out("x", newline=False))
                 + out('""'))
-        self.assertEqual(run(body), "00\n")
+        self.assertEqual(run(body), "12\n")
+        with self.assertRaises(FprgRuntimeError):   # the second Declare leaves x without a value again
+            run(decl("i, x", "Integer") + for_("i", "1", "2", decl("x", "Integer")
+                                                + if_("i == 1", assign("x", "9"), out("x"))))
 
     def test_random_in_program(self):
         body = (decl("i", "Integer") + decl("r", "Integer", array=True, size="3")
@@ -606,7 +613,7 @@ class StatementTest(unittest.TestCase):
         self.assertEqual(m.output, "")
         m.run()
         self.assertEqual(m.output, "3\n")
-        self.assertEqual(m.variables, {"a": 3, "b": 0, "name": "x"})
+        self.assertEqual(m.variables, {"a": 3, "b": fprg_run.UNSET, "name": "x"})
         self.assertEqual(list(m.variables), ["a", "b", "name"])
 
     def test_echo_stream(self):
