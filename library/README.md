@@ -36,6 +36,11 @@ Values are shown the way Flowgorithm shows them: `2`, not `2.0`; `true`, not `Tr
 at most 15 significant digits (`7 / 3` shows as `2.33333333333333`, `0.1 + 0.2` as `0.3`);
 `1E+16`.
 
+Flowgorithm also keeps every Real it calculates to 15 significant digits. The functions below
+round their results the same way, but Python's own `+ - * /` keep all the digits: in Flowgorithm
+`0.1 + 0.2 == 0.3` is true, in Python it is false. Compare Reals with a tolerance
+(`Abs(a - b) < 0.000001`) instead of `==`; the converter warns about `==` and `!=` on Reals.
+
 ## Functions
 
 | Function | Result |

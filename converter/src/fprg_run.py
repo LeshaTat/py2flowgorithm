@@ -40,6 +40,9 @@ Flowgorithm's documentation where it exists and with its .NET implementation oth
   ``7 / 3``, ``0.3`` for ``0.1 + 0.2``, ``3`` for a whole value), with an exponent from
   ``1E+15`` on and below ``0.0001`` (``1E-05``). Booleans print as ``true``/``false``.
 * ``&`` and ``ToString`` use that same formatting.
+* **Real arithmetic** (checked in Flowgorithm): every Real is rounded to 15 significant
+  digits when it is computed, so ``1 / 3 * 3`` is ``0.999999999999999`` and
+  ``0.1 + 0.2 == 0.3`` is true. That function results are rounded the same way is assumed.
 * ``/`` always yields a Real. ``%``/``mod`` stops on a negative number on either side,
   as Flowgorithm does (checked: "The value '-7' is not valid for the function % mod",
   and the same for '-2' on the right); otherwise it is the remainder, also for Reals. ``^`` yields an Integer when both operands
@@ -195,6 +198,14 @@ def format_value(value) -> str:
     if value is None:
         raise FprgRuntimeError("a None function has no value to convert to text")
     raise FprgRuntimeError(f"cannot format a value of type {t.__name__}")
+
+
+def real15(value):
+    """A value as Flowgorithm keeps it: a Real rounded to 15 significant digits, every time one is
+    computed (checked: 1 / 3 * 3 is 0.999999999999999 and 0.1 + 0.2 == 0.3 is true)."""
+    if type(value) is float and math.isfinite(value):
+        return float(format(value, ".15g"))
+    return value
 
 
 def fixed_text(value: float, digits: int) -> str:
@@ -994,12 +1005,14 @@ class Machine:
     # -- expressions -----------------------------------------------------------
     def _eval(self, node: Node, frame: Frame):
         tag = node[0]
-        if tag == "num" or tag == "str" or tag == "bool":
+        if tag == "num":
+            return real15(node[1])
+        if tag == "str" or tag == "bool":
             return node[1]
         if tag == "var":
             return self._slot(node[2], node[1], frame).value
         if tag == "bin":
-            return self._binary(node[1], self._eval(node[2], frame), self._eval(node[3], frame))
+            return real15(self._binary(node[1], self._eval(node[2], frame), self._eval(node[3], frame)))
         if tag == "call":
             return self._call(node, frame, as_statement=False)
         if tag == "index":
@@ -1106,7 +1119,7 @@ class Machine:
                 raise FprgRuntimeError(f"{INTRINSIC_NAMES[lower]}() takes {arity} argument(s), "
                                        f"{len(arg_nodes)} given")
             args = [self._eval(a, frame) for a in arg_nodes]
-            return self._intrinsic(lower, args)
+            return real15(self._intrinsic(lower, args))
         fn = self.program.functions.get(lower)
         if fn is None:
             raise FprgRuntimeError(f"unknown function '{name}'")

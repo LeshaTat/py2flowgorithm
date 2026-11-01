@@ -8,6 +8,7 @@
     <function name="Main" type="None" variable="">
         <parameters/>
         <body>
+            <output expression="&quot;A11 &quot; &amp; (Sqrt(2) * Sqrt(2))" newline="True"/>
             <declare name="xs" type="Integer" array="True" size="3"/>
             <declare name="rs" type="Real" array="True" size="2"/>
             <declare name="ss" type="String" array="True" size="2"/>

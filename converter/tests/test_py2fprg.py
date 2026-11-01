@@ -388,6 +388,7 @@ class StatementTest(unittest.TestCase):
         self.assertIn("ask()", warnings_of("ok = False\nif ok and ask():\n    pass",
                                            "def ask() -> bool:\n    answer = Input(str)\n    return answer == \"y\"\n")[0])
         self.assertIn("Python orders Strings by character code", warnings_of('s = "a"\nif s < "B":\n    pass')[0])
+        self.assertIn("compare with a tolerance", warnings_of("x = 0.1 + 0.2\nif x == 0.3:\n    pass")[0])
         self.assertEqual(warnings_of('i = 0\nok = True\ns = "a"\nif i < 3 and ok or s == "b":\n    pass'), [])
         # a renamed name is reported, unless only its spelling changed (snake_case -> camelCase)
         self.assertEqual(warnings_of("size = 2\nmy_total = 1\nOutput(size, my_total, half(2))",

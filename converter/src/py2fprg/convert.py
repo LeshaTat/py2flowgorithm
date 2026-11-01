@@ -980,6 +980,10 @@ class FunctionConverter:
             raise self.err(f"cannot compare {type_name(a.type)} with {type_name(b.type)}", n)
         if a.type == BOOLEAN and op not in (ast.Eq, ast.NotEq):
             raise self.err("true and false are compared with == and != only", n)
+        if op in (ast.Eq, ast.NotEq) and REAL in (a.type, b.type):
+            self.warn("Flowgorithm rounds every Real to 15 digits while calculating and Python does not "
+                      "(0.1 + 0.2 == 0.3 is true there, false here), so == and != on Reals can decide "
+                      "differently: compare with a tolerance, like Abs(a - b) < 0.000001", n)
         if a.type == STRING and op not in (ast.Eq, ast.NotEq):
             self.warn('Python orders Strings by character code ("B" < "a"); Flowgorithm may order upper and lower '
                       "case, digits and punctuation differently", n)

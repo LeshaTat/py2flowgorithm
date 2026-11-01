@@ -62,6 +62,12 @@ def _text(value) -> str:
     raise FlowgorithmError(f"cannot output a value of type {t.__name__}")
 
 
+def _real(value: float) -> float:
+    """A Real result as Flowgorithm keeps it: rounded to 15 significant digits. Flowgorithm rounds
+    every Real it computes; Python's own arithmetic cannot be made to, but these functions can."""
+    return float(format(value, ".15g")) if _math.isfinite(value) else value
+
+
 def _number(name: str, value):
     if type(value) not in (int, float):
         raise FlowgorithmError(f"{name}() needs a number, got {_text_or_type(value)}")
@@ -115,7 +121,8 @@ def Input(kind=str):
 
 # --------------------------------------------------------------------------- math
 def Abs(n):
-    return abs(_number("Abs", n))
+    n = abs(_number("Abs", n))
+    return _real(n) if type(n) is float else n
 
 
 def Sgn(n) -> int:
@@ -135,44 +142,44 @@ def Sqrt(n) -> float:
     n = _number("Sqrt", n)
     if n < 0:
         raise FlowgorithmError(f"Sqrt() of a negative number ({_text(n)})")
-    return _math.sqrt(n)
+    return _real(_math.sqrt(n))
 
 
 def Sin(n) -> float:
-    return _math.sin(_number("Sin", n))
+    return _real(_math.sin(_number("Sin", n)))
 
 
 def Cos(n) -> float:
-    return _math.cos(_number("Cos", n))
+    return _real(_math.cos(_number("Cos", n)))
 
 
 def Tan(n) -> float:
-    return _math.tan(_number("Tan", n))
+    return _real(_math.tan(_number("Tan", n)))
 
 
 def Arcsin(n) -> float:
     n = _number("Arcsin", n)
     if not -1 <= n <= 1:
         raise FlowgorithmError(f"Arcsin() argument {_text(n)} is outside -1..1")
-    return _math.asin(n)
+    return _real(_math.asin(n))
 
 
 def Arccos(n) -> float:
     n = _number("Arccos", n)
     if not -1 <= n <= 1:
         raise FlowgorithmError(f"Arccos() argument {_text(n)} is outside -1..1")
-    return _math.acos(n)
+    return _real(_math.acos(n))
 
 
 def Arctan(n) -> float:
-    return _math.atan(_number("Arctan", n))
+    return _real(_math.atan(_number("Arctan", n)))
 
 
 def _log(name: str, n, base10: bool = False) -> float:
     n = _number(name, n)
     if n <= 0:
         raise FlowgorithmError(f"{name}() of a non-positive number ({_text(n)})")
-    return _math.log10(n) if base10 else _math.log(n)
+    return _real(_math.log10(n) if base10 else _math.log(n))
 
 
 def Ln(n) -> float:
@@ -238,7 +245,7 @@ def ToReal(text: str) -> float:
     """A number from text: ToReal("2.5") is 2.5."""
     text = _string("ToReal", text)
     try:
-        return float(text.strip())
+        return _real(float(text.strip()))
     except ValueError:
         raise FlowgorithmError(f"ToReal() cannot convert {text!r}") from None
 

@@ -133,9 +133,11 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
 * Ordering Strings with `<` / `>` (warned about): Python compares character codes (`"B" < "a"`).
   Flowgorithm under Wine did the same; on Windows it may order upper and lower case
   differently. `==` and `!=` are the same.
-* Reals print alike: the library shows at most 15 significant digits, as Flowgorithm does
-  (`7 / 3` is `2.33333333333333`). But Flowgorithm seems to round to 15 digits while calculating
-  too: `1 / 3 * 3` is `0.999999999999999` there and `1` in Python (the probe is checking this).
+* Reals: the library shows at most 15 significant digits, as Flowgorithm does (`7 / 3` is
+  `2.33333333333333`). But Flowgorithm also rounds every Real to 15 digits while calculating
+  (checked), and Python's arithmetic does not: `0.1 + 0.2 == 0.3` is true there and false in
+  Python, `1 / 3 * 3` shows `0.999999999999999` there and `1` in Python. `==` and `!=` between
+  Reals are warned about: compare with a tolerance, like `Abs(a - b) < 0.000001`.
 * Very large whole numbers: Python's Integers have no limit, Flowgorithm's have a fixed size
   (keep them below 2 147 483 647, or use a Real).
 

@@ -167,7 +167,9 @@ class ExpressionTest(unittest.TestCase):
         self.check("Ln(1)", 0.0)
         self.check("Log10(1000)", 3.0)
         self.check("Sin(0) + Cos(0) + Tan(0)", 1.0)
-        self.check("Arctan(1) * 4", math.pi)
+        self.check("Arctan(1) * 4", 3.14159265358979)   # every Real kept to 15 digits, as in Flowgorithm
+        self.check("1 / 3 * 3", 0.999999999999999)       # checked in Flowgorithm
+        self.check("0.1 + 0.2 == 0.3", True)
         self.check("Arcsin(1) * 2 == Arccos(0) * 2", True)
         self.check("ToChar(65) & ToCode(\"A\")", "A65")
         self.check('ToInteger("42") + ToInteger(3.9)', 45)

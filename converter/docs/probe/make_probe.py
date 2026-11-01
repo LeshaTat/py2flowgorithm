@@ -74,8 +74,10 @@ def main_checks() -> list:
 
 
 def array_start() -> list:
-    """probe-array-start.fprg, J: what a new array holds."""
+    """probe-array-start.fprg, J: what a new array holds. A11 rides along: are function results
+    rounded to 15 digits too (2.00000000000001), or only operator results (2)?"""
     return [
+        show("A11", "Sqrt(2) * Sqrt(2)"),
         Declare(["xs"], INTEGER, True, "3"), Declare(["rs"], REAL, True, "2"), Declare(["ss"], STRING, True, "2"),
         Declare(["bs"], BOOLEAN, True, "2"),
         show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]"),

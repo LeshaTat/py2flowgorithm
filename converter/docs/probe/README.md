@@ -5,7 +5,7 @@ Windows. The flowgorithm library, `fprg_run.py` and the converter's warnings res
 the rules below. Four flowcharts settle them, run in Flowgorithm one file at a time:
 
 * `probe.fprg` — lines A to I;
-* `probe-array-start.fprg` — J: what a new array holds;
+* `probe-array-start.fprg` — J: what a new array holds (and A11);
 * `probe-redeclare.fprg` — K: a Declare that runs again;
 * `probe-overflow.fprg` — L: how big an Integer gets.
 
@@ -21,7 +21,8 @@ Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
 | Lines | Question | Assumed now | Otherwise |
 |---|---|---|---|
 | A1–A7 | how a Real is written | 15 significant digits (`2.33333333333333`, `0.3`), an exponent from `1E+15` and below `0.0001` | — (answered) |
-| A8–A10 | does Flowgorithm round Reals to 15 digits while calculating (A6 gave `0.999999999999999`)? | no: IEEE doubles (`false`, `5.55111512312578E-17`, `1`) | yes: `true`, `0`, `0.999999999999999` |
+| A8–A10 | does Flowgorithm round Reals to 15 digits while calculating (A6 gave `0.999999999999999`)? | yes: `true`, `0`, `0.999999999999999` | — (answered) |
+| A11 | are function results rounded too? (rides along in `probe-array-start.fprg`) | yes: `Sqrt(2) * Sqrt(2)` is `2.00000000000001` | only operators: `2` |
 | B1–B5 | `ToFixed` rounding | 15 digits, then half away from zero (`2.3`, `-2.3`, `0.13`, `2.68`, `1.01`) | — (answered) |
 | C3 | `7.5 % 2` | `1.5` | — (answered) |
 | D1–D3 | `2 ^ 3 ^ 2`, `-2 ^ 2`, `2 ^ -1` | `64`, `4`, `0.5` | — (answered) |
@@ -66,3 +67,8 @@ under Wine Staging 11.21 with Wine Mono 11.3 on macOS — so on Mono, not Micros
     already forbids changing the end inside the loop.
   The library and `fprg_run` now print Reals, round in `ToFixed` and accept `ToString(true)` as
   Flowgorithm does.
+* The second run of `probe.fprg` printed A8 `true`, A9 `0`, A10 `0.999999999999999`: Flowgorithm
+  rounds every Real to 15 significant digits while calculating, also when one is stored in a
+  variable. `fprg_run` now does the same (for function results too, which A11 checks), and the
+  library rounds its own functions' results. Python's arithmetic cannot be rounded, so the
+  converter warns about `==` and `!=` between Reals, where the two would decide differently.
