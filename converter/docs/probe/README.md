@@ -4,14 +4,14 @@ Flowgorithm documents its shapes and functions but not every run-time rule, and 
 Windows. The flowgorithm library, `fprg_run.py` and the converter's warnings rest on guesses for
 the rules below. These four flowcharts settle them: open each one in Flowgorithm, run it, and
 compare the console with [`expected.txt`](expected.txt), which is what the library and
-`fprg_run.py` assume. A line that differs shows which guess to change (in `flowgorithm.py` and
-`fprg_run.py` together, so they keep agreeing).
+`fprg_run.py` assume. A line that differs shows which guess to change (in
+`library/flowgorithm.py` and `converter/fprg_run.py` together, so they keep agreeing).
 
 * `probe.fprg` — nothing in it should stop.
 * `probe-array-start.fprg`, `probe-redeclare.fprg`, `probe-overflow.fprg` — each may stop with an
   error; then the error message is the answer.
 
-Regenerate them with `python3 docs/probe/make_probe.py`.
+Regenerate them with `python3 converter/docs/probe/make_probe.py`.
 
 | Lines | Question | Assumed now | Otherwise |
 |---|---|---|---|

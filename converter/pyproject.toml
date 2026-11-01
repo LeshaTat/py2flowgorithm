@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "py2fprg"
 version = "0.3.0"
-description = "Write Flowgorithm programs in Python (with the flowgorithm library) and get the .fprg flowcharts"
+description = "Turn Python programs written in the Flowgorithm dialect into Flowgorithm .fprg flowcharts; lint, draw and run .fprg files"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -19,4 +19,4 @@ fprg-run = "fprg_run:main"
 
 [tool.setuptools]
 packages = ["py2fprg"]
-py-modules = ["flowgorithm", "fprg_lint", "fprg2svg", "fprg_run"]
+py-modules = ["fprg_lint", "fprg2svg", "fprg_run"]

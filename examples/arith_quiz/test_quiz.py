@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-sys.path.insert(1, os.path.dirname(os.path.dirname(HERE)))  # flowgorithm.py at the repository root
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.dirname(HERE)), "library"))  # the flowgorithm library
 
 import quiz  # noqa: E402
 

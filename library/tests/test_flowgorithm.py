@@ -1,8 +1,9 @@
-"""Tests for the flowgorithm library (run: python3 -m unittest tests.test_flowgorithm -v).
+"""Tests for the flowgorithm library (run from the repository root:
+python3 -m unittest discover -s library/tests).
 
 The library is what student programs run with, so it must behave like Flowgorithm: the same
-console text as fprg_run (the reference interpreter for the generated flowcharts), the same
-conversions, the same run-time errors.
+console text, the same conversions, the same run-time errors. That it gives exactly what the
+converter's interpreter (fprg_run) gives is checked in converter/tests/test_library_agreement.py.
 """
 import contextlib
 import io
@@ -14,7 +15,6 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import flowgorithm as fg  # noqa: E402
-import fprg_run  # noqa: E402
 
 
 def output(*values, **kw) -> str:
@@ -97,26 +97,6 @@ class FunctionsTest(unittest.TestCase):
                      lambda: fg.ToString("x")):
             with self.assertRaises(fg.FlowgorithmError):
                 call()
-
-
-class SameAsInterpreterTest(unittest.TestCase):
-    """The library gives what fprg_run (and so the generated flowchart) gives."""
-
-    CASES = ["Int(-7 / 2)", "Abs(-2.5)", "Sgn(0)", "Sqrt(2)", "ToFixed(2.675, 2)", "ToFixed(1, 3)",
-             "ToString(2.0)", "ToString(0.1)", "ToInteger(\"42\")", "ToReal(\"1e3\")", "Len(\"hello\")", "Char(\"hello\", 4)", "ToCode(\"z\")", "ToChar(65)",
-             "Log(10)", "Log10(2)", "Arctan(1)", "Cos(pi)"]
-
-    def test_functions(self):
-        for case in self.CASES:
-            with self.subTest(case=case):
-                python = case.replace("true", "True").replace("pi", "fg.pi")
-                ours = eval("fg." + python if not python.startswith("fg.") else python, {"fg": fg})
-                self.assertEqual(ours, fprg_run.evaluate(case))
-
-    def test_formatting(self):
-        for value in (0, -5, 2.0, 2.5, 1 / 3, 1e15, -2.5e15, 1234567890123456.8, 1e16, 123456789.0, True, "x"):
-            with self.subTest(value=value):
-                self.assertEqual(output(value), fprg_run.format_value(value) + "\n")
 
 
 if __name__ == "__main__":

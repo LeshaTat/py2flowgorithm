@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flowgorithm-lib"
+version = "0.3.0"
+description = "Write Flowgorithm programs in Python: Flowgorithm's Output, Input and built-in functions with Flowgorithm's behaviour"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = []
+
+[tool.setuptools]
+py-modules = ["flowgorithm"]

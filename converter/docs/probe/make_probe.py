@@ -1,8 +1,9 @@
 """Build the probe flowcharts: small programs that show, when run in real Flowgorithm, the run-time
-rules py2fprg, the flowgorithm library and fprg_run had to guess (see "What can still differ" in
-README.md and the "Semantics that had to be guessed" list in fprg_run.py).
+rules py2fprg, the flowgorithm library (library/flowgorithm.py) and fprg_run had to guess (see
+"What can still differ" in converter/README.md and the "Semantics that had to be guessed" list in
+fprg_run.py).
 
-    python3 docs/probe/make_probe.py      # writes docs/probe/*.fprg and docs/probe/expected.txt
+    python3 converter/docs/probe/make_probe.py      # writes the .fprg files and expected.txt here
 
 Open each .fprg in Flowgorithm, run it, and compare the console with expected.txt (what fprg_run,
 and so the library, currently assume). Every line starts with a label (A1, B2, ...); README.md
@@ -111,10 +112,10 @@ def main() -> None:
         except fprg_run.FprgRuntimeError as e:
             out = f"(stops: {e})\n"
         expected.append(f"== {name}.fprg\n{out}")
-        print(f"wrote docs/probe/{name}.fprg")
+        print(f"wrote {os.path.relpath(os.path.join(HERE, name + '.fprg'))}")
     with open(os.path.join(HERE, "expected.txt"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write("What fprg_run (and the flowgorithm library) assume each probe prints.\n\n" + "\n".join(expected))
-    print("wrote docs/probe/expected.txt")
+    print(f"wrote {os.path.relpath(os.path.join(HERE, 'expected.txt'))}")
 
 
 if __name__ == "__main__":

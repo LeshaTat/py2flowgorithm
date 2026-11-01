@@ -5,10 +5,7 @@ real files saved by Flowgorithm (skipped when the sample folder is not present),
 differential tests that run the example Python programs and their py2fprg conversions
 with the same scripted input and random values and compare the console output.
 """
-import contextlib
 import html
-import importlib
-import importlib.util
 import io
 import math
 import os
@@ -16,7 +13,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -25,10 +21,7 @@ sys.path.insert(0, ROOT)
 import fprg_run  # noqa: E402
 from fprg_run import (FArray, FprgRuntimeError, FprgSyntaxError, Machine, evaluate,  # noqa: E402
                       format_value, run_file, run_string)
-from py2fprg import convert_path  # noqa: E402
 
-EXAMPLES = os.path.join(ROOT, "examples")
-QUIZ_DIR = os.path.join(EXAMPLES, "arith_quiz")
 # Files saved by Flowgorithm itself (third-party data, read only). Override with FPRG_SAMPLES.
 SAMPLES = os.environ.get("FPRG_SAMPLES") or (
     "/private/tmp/claude-501/-Users-alekseitatuzov-personal-code-flowgorithm/"
@@ -668,98 +661,7 @@ class SampleFilesTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 4. Differential tests: Python program vs. its py2fprg conversion
-# ---------------------------------------------------------------------------
-
-def python_output(main, inputs, random_values):
-    """Run a dialect program's main() with scripted Input() answers and Random() values (the
-    library reads with input() and draws with random.randrange, as fprg_run's `v % n`)."""
-    answers = iter(inputs)
-    randoms = iter(random_values)
-
-    def fake_input(prompt=""):
-        try:
-            return next(answers)
-        except StopIteration:
-            raise EOFError("scripted input exhausted") from None
-
-    out = io.StringIO()
-    with patch("builtins.input", side_effect=fake_input), \
-            patch("random.randrange", side_effect=lambda n: next(randoms) % n), contextlib.redirect_stdout(out):
-        main()
-    return out.getvalue()
-
-
-def import_example(path):
-    """Import an example program by file path (the flowgorithm library is at the repository root)."""
-    name = "example_" + os.path.splitext(os.path.basename(path))[0]
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-class DifferentialTestBase(unittest.TestCase):
-    """The Python program (with the flowgorithm library) and its flowchart print exactly the same."""
-    source = ""  # the example program file
-
-    @classmethod
-    def setUpClass(cls):
-        (_, cls.xml), = convert_path(cls.source)
-        cls.module = import_example(cls.source)
-
-    def compare(self, inputs, random_values, *expected_fragments):
-        py = python_output(self.module.main, inputs, random_values)
-        fg = run_string(self.xml, inputs, random_values=random_values)
-        for fragment in expected_fragments:
-            self.assertIn(fragment, py)
-        self.assertEqual(py, fg)
-        return py
-
-
-class GuessNumberDifferentialTest(DifferentialTestBase):
-    source = os.path.join(EXAMPLES, "guess_number.py")
-
-    def test_three_tries(self):
-        # random 41 -> secret 41 % 100 + 1 = 42
-        text = self.compare(["50", "25", "42"], [41], "Too high.", "Too low.", "You needed 3 tries. Excellent!")
-        self.assertEqual(text.count("Your guess?"), 3)
-
-    def test_good_rating(self):
-        text = self.compare(["50", "75", "90", "95", "99", "100"], [99], "You needed 6 tries. Good.")
-        self.assertTrue(text.startswith("I am thinking of a number from 1 to 100.\n"))
-
-    def test_keep_practising(self):
-        guesses = [str(n) for n in range(1, 12)]            # secret 11: eleven tries
-        self.compare(guesses, [10], "You needed 11 tries. Keep practising.")
-
-
-class ArithQuizDifferentialTest(DifferentialTestBase):
-    source = os.path.join(QUIZ_DIR, "quiz.py")
-
-    # random values: kind = Random(3) + 1 (1 add, 2 multiply, 3 subtract), a, b = Random(12) + 1
-    def test_one_round_all_correct(self):
-        text = self.compare(["Ada", "2", "5", "12", "n"], [0, 1, 2, 1, 2, 3],
-                            "Question 1: 2 + 3 = ?", "Question 2: 3 x 4 = ?",
-                            "Ada, you scored 2 points out of 2 (100%).", "Your grade: A", "Results: **", "Goodbye!")
-        self.assertEqual(text.count("Correct!"), 2)
-
-    def test_validation_wrong_answer_and_second_round(self):
-        self.compare(["Bob", "0", "11", "1", "99", "y", "1", "5", "maybe", "no"], [0, 1, 2, 0, 1, 2],
-                     "Please enter a number from 1 to 10.", "Sorry, the answer is 5.",
-                     "Bob, you scored 0 points out of 1 (0%).", "Your grade: F", "Results: -",
-                     "Bob, you scored 1 point out of 1 (100%).", "Results: *")
-
-    def test_subtraction_negative_answer_and_grades(self):
-        # 1 - 12 = -11 (correct), 12 x 12 = 144 (wrong), 12 - 1 = 11 (correct) -> 2 of 3 = 66% -> C
-        self.compare(["Cy", "3", "-11", "100", "11", "N"], [2, 0, 11, 1, 11, 11, 2, 11, 0],
-                     "Question 1: 1 - 12 = ?", "Question 2: 12 x 12 = ?", "Sorry, the answer is 144.",
-                     "Question 3: 12 - 1 = ?", "Results: *-*", "Cy, you scored 2 points out of 3 (66%).",
-                     "Your grade: C")
-
-
-# ---------------------------------------------------------------------------
-# 5. Command line
+# 4. Command line
 # ---------------------------------------------------------------------------
 
 class CliTest(unittest.TestCase):

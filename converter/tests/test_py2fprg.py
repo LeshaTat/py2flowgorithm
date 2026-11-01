@@ -1,4 +1,5 @@
-"""Tests for the py2fprg converter (run: python3 -m unittest tests.test_py2fprg -v).
+"""Tests for the py2fprg converter (run from the repository root:
+python3 -m unittest discover -s converter/tests).
 
 Programs are written in the Flowgorithm dialect: one file, `from flowgorithm import *`, typed
 functions, main(). Every converted document is linted, and the differential tests run the Python
@@ -18,6 +19,7 @@ from unittest.mock import patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(1, os.path.join(os.path.dirname(ROOT), "library"))  # the programs import the flowgorithm library
 
 import fprg_lint  # noqa: E402
 import fprg_run  # noqa: E402
@@ -553,13 +555,6 @@ class CommandLineTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
                 self.assertRaises(SystemExit):
             cli_main([root, "-o", os.path.join(root, "all.fprg")])
-
-    def test_examples_convert(self):
-        for path in (os.path.join(ROOT, "examples", "guess_number.py"),
-                     os.path.join(ROOT, "examples", "arith_quiz", "quiz.py")):
-            with self.subTest(path=path):
-                (_, xml), = convert_path(path, metadata=False)
-                self.assertEqual([f for f in fprg_lint.lint_string(xml, "x") if f.severity == "ERROR"], [])
 
 
 if __name__ == "__main__":

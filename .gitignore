@@ -4,3 +4,7 @@ __pycache__/
 *.svg
 *.png
 !docs/*.svg
+build/
+dist/
+*.egg-info/
+.venv/
