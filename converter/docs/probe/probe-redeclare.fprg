@@ -16,9 +16,7 @@
                         <assign variable="row[0]" expression="5"/>
                         <output expression="&quot;K1 round 1: row[0] set to 5&quot;" newline="True"/>
                     </then>
-                    <else>
-                        <output expression="&quot;K2 round 2: row[0] is &quot; &amp; (row[0])" newline="True"/>
-                    </else>
+                    <else/>
                 </if>
             </for>
             <output expression="&quot;Z end&quot;" newline="True"/>

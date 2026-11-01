@@ -93,8 +93,8 @@ def redeclare() -> list:
         Declare(["round"], INTEGER),
         For("round", "1", "2", body=[
             Declare(["row"], INTEGER, True, "2"),
-            If("round == 1", [Assign("row[0]", "5"), text("K1 round 1: row[0] set to 5")],
-               [show("K2 round 2: row[0] is", "row[0]")])]),
+            # K2, reading row[0] in round 2, stops: the Declare made a new, empty array (answered)
+            If("round == 1", [Assign("row[0]", "5"), text("K1 round 1: row[0] set to 5")], [])]),
         text("Z end"),
     ]
 

@@ -53,7 +53,7 @@ Z end
 
 == probe-redeclare.fprg
 K1 round 1: row[0] set to 5
-(stops: the variable 'row' was not initialized: nothing was stored into row[0] (in function Main, at Main/body[1]/for[1]/if/else[0]/output))
+Z end
 
 == probe-overflow.fprg
 L1 2147483648
