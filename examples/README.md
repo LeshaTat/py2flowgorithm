@@ -17,9 +17,9 @@ makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own 
   (an array sized by the input, an array parameter, a checked input in a Do loop), `menu` (a menu
   in a Do loop, functions without a result), `fib` (a running sequence, and recursion).
 * `lab1_cinema/` — the start of a lab: Lab 1 Cinema Seats with task 1.1 done, in the layout the
-  lab keeps to the end (`main.py` the program, a file for each task with its tests inside, a
-  `.vscode` folder for VS Code). Copy that folder alone to start the lab; its README says how it
-  goes on.
+  lab keeps to the end (`main.py` the program, already a menu, a file for each task with its
+  tests inside, a `.vscode` folder for VS Code). Copy that folder alone to start the lab; its
+  README says how it goes on.
 * `tests/test_examples.py` — plays every program in Python and as its flowchart.
 
 ## Your own project

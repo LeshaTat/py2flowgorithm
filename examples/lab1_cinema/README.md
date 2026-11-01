@@ -1,11 +1,12 @@
 # Lab 1: Cinema Seats, the start
 
 Lab 1 (Grade 9, Flowgorithm arrays) with its first task done, laid out the way the lab goes on to
-the end. Copy this folder to start the lab.
+the end. Task 1.1 asks nothing, so the program is already the menu of task 1.7, with a made-up
+option for now: Show seats, which shows task 1.1's map. Copy this folder to start the lab.
 
 | File | What it is |
 |---|---|
-| `main.py` | the program: books seats 2, 5 and 7 and shows the map; its tests play it in Python and as the flowchart |
+| `main.py` | the program: a menu (1 Show seats, 2 Quit) that asks until the choice is valid; its tests play whole sessions in Python and as the flowchart |
 | `task_1_1.py` | task 1.1, the seats and the seat map: `book`, `seat_map`, `show_map`, with their tests |
 | `main.fprg` | the flowchart of main.py, with every function it uses |
 | `.vscode/` | VS Code: the tests in the Testing view, buttons to play the program and to convert it |
@@ -27,13 +28,16 @@ On Windows, type `py` for `python3` and `py -m py2fprg` for `py2fprg`.
 ## The next tasks
 
 Each task gets a file of its own (`task_1_2.py`, `task_1_3.py`, ...) with its functions and a
-`unittest.TestCase` class that tests them. main.py imports what it uses
-(`from task_1_2 import book_seat`), and one task file can import from another the same way.
-py2fprg follows these imports, so main.fprg holds every function the program uses; the test
-classes and `import unittest` stay out of the flowchart.
+`unittest.TestCase` class that tests them, and an option in the menu: a constant, a line in
+`show_menu` and a branch in `main` that calls the task's function. main.py imports what it uses
+(`from task_1_2 import book_seat`), and one task file can import from another the same way, but
+not from main.py: files must not import each other in a circle. So when task 1.2 asks for a seat
+number, move `read_number` into task_1_2.py and import it in main.py. py2fprg follows the
+imports, so main.fprg holds every function the program uses; the test classes and
+`import unittest` stay out of the flowchart.
 
-Once main.py asks questions, add the typed answers of whole sessions to `MainTest.SESSIONS`:
-each session is played in Python and as the flowchart, and both must print the same.
+As the menu grows, add the typed answers of whole sessions to `MenuTest.SESSIONS`: each session
+is played in Python and as the flowchart, and both must print the same.
 
 ## VS Code
 
