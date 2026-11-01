@@ -30,8 +30,6 @@
             <output expression="&quot;J2 &quot; &amp; (rs[1])" newline="True"/>
             <output expression="&quot;J3 &quot; &amp; (&quot;[&quot; &amp; ss[0] &amp; &quot;]&quot;)" newline="True"/>
             <output expression="&quot;J4 &quot; &amp; (bs[1])" newline="True"/>
-            <declare name="empty" type="String" array="True" size="2"/>
-            <output expression="&quot;J5 &quot; &amp; (empty[0])" newline="True"/>
             <output expression="&quot;Z end&quot;" newline="True"/>
         </body>
     </function>

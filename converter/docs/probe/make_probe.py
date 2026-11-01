@@ -84,7 +84,7 @@ def array_start() -> list:
         shapes += [Declare([name], kind, True, str(size)),
                    For("fill", "0", str(size - 1), body=[Assign(f"{name}[fill]", value)])]
     return shapes + [show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]"),
-                     Declare(["empty"], STRING, True, "2"), show("J5", "empty[0]"), text("Z end")]
+                     text("Z end")]  # J5, an unfilled String array, stops the program (answered)
 
 
 def redeclare() -> list:

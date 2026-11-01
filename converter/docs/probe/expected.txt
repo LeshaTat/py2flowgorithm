@@ -49,7 +49,7 @@ J1 0
 J2 0
 J3 []
 J4 false
-(stops: the variable 'empty' was not initialized: nothing was stored into empty[0] (in function Main, at Main/body[15]/output))
+Z end
 
 == probe-redeclare.fprg
 K1 round 1: row[0] set to 5
