@@ -56,6 +56,7 @@ RUNS = {
                     "Question 3: 12 - 1 = ?", "Results: *-*", "Cy, you scored 2 points out of 3 (66%).",
                     "Your grade: C"]),
     ],
+    "lab1_cinema/main.py": [play(shows=["0:- 1:X 2:- 3:- 4:X 5:- 6:X 7:- 8:- 9:-"])],
     "exercises/binary.py": [play("0"), play("10"), play("255")],
     "exercises/bubble.py": [play("5", "3", "9", "-1", "3")],
     "exercises/caesar.py": [play("Hello, World!", "3"), play("xyz", "25"), play("", "5")],
@@ -89,7 +90,8 @@ def run_python(path: str, answers: list, randoms: list) -> str:
 
     namespace = {"__name__": "example"}
     out = io.StringIO()
-    with patch("builtins.input", side_effect=read), \
+    # the program can import from the files in its folder
+    with patch.object(sys, "path", [os.path.dirname(path)] + sys.path), patch("builtins.input", side_effect=read), \
             patch("random.randrange", side_effect=lambda n: next(rolls) % n), contextlib.redirect_stdout(out):
         exec(code, namespace)
         namespace["main"]()

@@ -76,7 +76,9 @@ You need Python 3.11 or newer; nothing outside the standard library.
    python3 -m unittest discover -s tests    # play every program in Python and as a flowchart
    ```
 
-   [`examples/README.md`](examples/README.md) explains the folder and how to add programs.
+   [`examples/README.md`](examples/README.md) explains the folder and how to add programs. A lab
+   starts from one folder of it instead: `cp -r examples/lab1_cinema ~/lab1-cinema` (see
+   [its README](examples/lab1_cinema/README.md)).
 
 On Windows, where Flowgorithm runs, the same steps in PowerShell (`py -m py2fprg` works whether
 or not the launchers' folder is on PATH):

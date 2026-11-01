@@ -8,11 +8,14 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SUITES = ["library/tests", "converter/tests", "examples/tests", "examples/arith_quiz"]
+# each suite's folder, and the files its tests are in
+SUITES = {"library/tests": "test*.py", "converter/tests": "test*.py", "examples/tests": "test*.py",
+          "examples/arith_quiz": "test*.py", "examples/lab1_cinema": "*.py"}
 SOURCES = [os.path.join(HERE, "library", "src"), os.path.join(HERE, "converter", "src")]
 
 env = dict(os.environ, PYTHONPATH=os.pathsep.join(SOURCES + [p for p in [os.environ.get("PYTHONPATH")] if p]))
-failed = [suite for suite in SUITES
-          if subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", suite], cwd=HERE, env=env).returncode]
+failed = [suite for suite, files in SUITES.items()
+          if subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", suite, "-p", files],
+                            cwd=HERE, env=env).returncode]
 print("failed: " + ", ".join(failed) if failed else f"all {len(SUITES)} suites passed")
 sys.exit(1 if failed else 0)

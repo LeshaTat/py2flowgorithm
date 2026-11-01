@@ -1,0 +1,44 @@
+# Lab 1: Cinema Seats, the start
+
+Lab 1 (Grade 9, Flowgorithm arrays) with its first task done, laid out the way the lab goes on to
+the end. Copy this folder to start the lab.
+
+| File | What it is |
+|---|---|
+| `main.py` | the program: books seats 2, 5 and 7 and shows the map; its tests play it in Python and as the flowchart |
+| `task_1_1.py` | task 1.1, the seats and the seat map: `book`, `seat_map`, `show_map`, with their tests |
+| `main.fprg` | the flowchart of main.py, with every function it uses |
+| `.vscode/` | VS Code: the tests in the Testing view, buttons to play the program and to convert it |
+
+Needs the flowgorithm library and the converter, installed once with `python3 install.py` in the
+flowgorithm repository.
+
+```bash
+cp -r examples/lab1_cinema ~/lab1-cinema       # in the flowgorithm repository
+cd ~/lab1-cinema
+git init
+python3 main.py                                # play it
+python3 -m unittest discover -p "*.py" -v      # every file's tests
+py2fprg main.py                                # make main.fprg again after a change
+```
+
+On Windows, type `py` for `python3` and `py -m py2fprg` for `py2fprg`.
+
+## The next tasks
+
+Each task gets a file of its own (`task_1_2.py`, `task_1_3.py`, ...) with its functions and a
+`unittest.TestCase` class that tests them. main.py imports what it uses
+(`from task_1_2 import book_seat`), and one task file can import from another the same way.
+py2fprg follows these imports, so main.fprg holds every function the program uses; the test
+classes and `import unittest` stay out of the flowchart.
+
+Once main.py asks questions, add the typed answers of whole sessions to `MainTest.SESSIONS`:
+each session is played in Python and as the flowchart, and both must print the same.
+
+## VS Code
+
+Pick the Python that install.py was run with (Python: Select Interpreter). The Testing view then
+runs every file's tests. Run and Debug has Play main.py and Convert to Flowgorithm, and
+Terminal > Run Build Task (Ctrl+Shift+B, Cmd+Shift+B on a Mac) converts too, with the
+converter's errors in Problems. The `.vscode` folder works the same in any project whose program
+is `main.py`.
