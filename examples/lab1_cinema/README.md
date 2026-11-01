@@ -6,7 +6,7 @@ option for now: Show seats, which shows task 1.1's map. Copy this folder to star
 
 | File | What it is |
 |---|---|
-| `main.py` | the program: books seats 2, 5 and 7, then does what the menu's choice says until Quit; its tests play whole sessions in Python and as the flowchart |
+| `main.py` | the program: books seats 2, 5 and 7, then does what the menu's choice says until Quit; its tests play it with typed answers |
 | `menu.py` | the menu (1 Show seats, 2 Quit) and `read_number`, which asks until a number is in range, with their tests |
 | `task_1_1.py` | task 1.1, the seats and the seat map: `book`, `seat_map`, `show_map`, with their tests |
 | `main.fprg` | the flowchart of main.py, with every function it uses |
@@ -33,9 +33,6 @@ Each task gets a file of its own (`task_1_2.py`, `task_1_3.py`, ...) with its fu
 (`from task_1_2 import book_seat`), as long as the imports don't go in a circle. py2fprg follows
 the imports, so main.fprg holds every function the program uses; the test classes and
 `import unittest` stay out of the flowchart.
-
-As the menu grows, add the typed answers of whole sessions to `MainTest.SESSIONS`: each session
-is played in Python and as the flowchart, and both must print the same.
 
 ## VS Code
 

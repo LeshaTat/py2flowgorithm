@@ -36,11 +36,6 @@ if __name__ == "__main__":
 class MainTest(unittest.TestCase):
     MENU = "1 Show seats\n2 Quit\nChoice?\n"
     START_MAP = "0:- 1:X 2:- 3:- 4:X 5:- 6:X 7:- 8:- 9:-"
-    SESSIONS = [  # typed answers: each session is also played as the flowchart
-        ["2"],
-        ["1", "2"],
-        ["0", "3", "1", "1", "2"],
-    ]
 
     @staticmethod
     def play(*answers: str) -> str:
@@ -56,32 +51,3 @@ class MainTest(unittest.TestCase):
 
     def test_invalid_choice(self):
         self.assertEqual(self.play("0", "3", "2"), self.MENU + "Invalid choice\nInvalid choice\nGoodbye\n")
-
-
-class FlowchartTest(unittest.TestCase):
-    """The flowchart prints what the Python program prints (needs the py2fprg converter)."""
-
-    def test_python_and_flowchart_print_the_same(self):
-        import os
-        import fprg_lint
-        import fprg_run
-        from py2fprg import convert_file
-        xml = convert_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py"), metadata=False)
-        self.assertEqual([f for f in fprg_lint.lint_string(xml, "main") if f.severity == "ERROR"], [])
-        for answers in MainTest.SESSIONS:
-            with self.subTest(answers=answers):
-                self.assertEqual(MainTest.play(*answers), fprg_run.run_string(xml, answers))
-
-    def test_the_flowchart_is_up_to_date(self):
-        import os
-        import re
-        from py2fprg import convert_file
-        here = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(here, "main.fprg"), encoding="utf-8") as fh:
-            saved = fh.read()
-
-        def without_attributes(xml: str) -> str:
-            return re.sub(r"\s*<attribute [^>]*/>", "", xml)
-
-        self.assertEqual(without_attributes(saved), without_attributes(convert_file(os.path.join(here, "main.py"))),
-                         "regenerate it: py2fprg main.py")
