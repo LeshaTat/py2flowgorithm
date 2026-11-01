@@ -87,3 +87,6 @@ under Wine Staging 11.21 with Wine Mono 11.3 on macOS — so on Mono, not Micros
   arithmetic keeps 15 significant digits, like Reals. L3 (`big * 2`) stopped with "Overflow — Assign :
   big = 9.22337203685478E+18". `fprg_run` now rounds Integer results the same way and stops when an
   Integer variable gets more than 9223372036854775807. L3 is left out.
+* End to end: `examples/arith_quiz/quiz.fprg`, played in Flowgorithm (2 questions, one answered
+  wrong), printed exactly what `quiz.py` prints in Python, and what `fprg_run` prints, for the same
+  answers and the same random numbers.
