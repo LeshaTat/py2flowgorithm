@@ -54,9 +54,16 @@ You need Python 3.11 or newer; nothing outside the standard library.
    ```
 
    Now every program run with that Python can `from flowgorithm import *`, and `py2fprg` works in
-   any folder. Nothing is copied: Python reads both projects from the clone, so `git pull` updates
-   them. `python3 install.py --uninstall` takes it out again; run `install.py` again after moving
-   the clone, and once for every other Python you use (IDLE, an IDE, another version).
+   any folder. Nothing is copied: `install.py` writes one file, `flowgorithm-repo.pth`, into your
+   Python's user site-packages, naming the clone's `library/src` and `converter/src`, plus small
+   launchers for the commands `py2fprg`, `fprg-run`, `fprg-lint` and `fprg2svg`. So `git pull`
+   updates everything, and `python3 install.py --uninstall` takes it out again. Run `install.py`
+   again after moving the clone, and once for every other Python you use (IDLE, an IDE, another
+   version).
+
+   If the shell then says `py2fprg: command not found`, the folder with the launchers is not on
+   your PATH: `install.py` printed which folder to add. Until then `python3 -m py2fprg` does the
+   same.
 
 2. Start your own project from the examples, in a repository of its own:
 
@@ -70,6 +77,19 @@ You need Python 3.11 or newer; nothing outside the standard library.
    ```
 
    [`examples/README.md`](examples/README.md) explains the folder and how to add programs.
+
+On Windows, where Flowgorithm runs, the same steps in PowerShell (`py -m py2fprg` works whether
+or not the launchers' folder is on PATH):
+
+```powershell
+py install.py                                   # in the clone
+Copy-Item -Recurse examples $HOME\my-flowgorithm
+cd $HOME\my-flowgorithm
+git init
+py exercises\fizzbuzz.py
+py -m py2fprg exercises
+py -m unittest discover -s tests
+```
 
 With pip instead: in a virtual environment, `pip install -e library -e converter` does the same
 for that environment.

@@ -38,6 +38,9 @@ py2fprg exercises/fizzbuzz.py              # make its flowchart (py2fprg exercis
 python3 -m unittest discover -s tests      # play every program in Python and as a flowchart
 ```
 
+On Windows, type `py` for `python3`, and `py -m py2fprg` for `py2fprg` (it works even when the
+command's folder is not on PATH).
+
 Every program gets its runs in the `RUNS` table of `tests/test_examples.py`: the answers it is
 given, the values `Random()` returns, and texts the console must show. The test then requires
 that the Python program and its flowchart print exactly the same, and that each saved `.fprg` is
