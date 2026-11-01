@@ -28,12 +28,9 @@ On Windows, type `py` for `python3` and `py -m py2fprg` for `py2fprg`.
 ## The next tasks
 
 Each task gets a file of its own (`task_1_2.py`, `task_1_3.py`, ...) with its functions and a
-`unittest.TestCase` class that tests them, and an option in the menu: a constant, a line in
-`show_menu` and a branch in `main` that calls the task's function. main.py imports what it uses
-(`from task_1_2 import book_seat`), and one task file can import from another the same way, but
-not from main.py: files must not import each other in a circle. So when task 1.2 asks for a seat
-number, move `read_number` into task_1_2.py and import it in main.py. py2fprg follows the
-imports, so main.fprg holds every function the program uses; the test classes and
+`unittest.TestCase` class that tests them. A file imports what it uses from the others
+(`from task_1_2 import book_seat`), as long as the imports don't go in a circle. py2fprg follows
+the imports, so main.fprg holds every function the program uses; the test classes and
 `import unittest` stay out of the flowchart.
 
 As the menu grows, add the typed answers of whole sessions to `MenuTest.SESSIONS`: each session
