@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<flowgorithm fileversion="3.0">
+    <attributes>
+        <attribute name="name" value="Probe: declare in a loop"/>
+        <attribute name="authors" value="py2fprg"/>
+        <attribute name="about" value="What does a Declare do when it runs again?"/>
+    </attributes>
+    <function name="Main" type="None" variable="">
+        <parameters/>
+        <body>
+            <declare name="round" type="Integer" array="False" size=""/>
+            <for variable="round" start="1" end="2" direction="inc" step="1">
+                <declare name="row" type="Integer" array="True" size="2"/>
+                <if expression="round == 1">
+                    <then>
+                        <assign variable="row[0]" expression="5"/>
+                        <output expression="&quot;K1 round 1: row[0] set to 5&quot;" newline="True"/>
+                    </then>
+                    <else>
+                        <output expression="&quot;K2 round 2: row[0] is &quot; &amp; (row[0])" newline="True"/>
+                    </else>
+                </if>
+            </for>
+            <output expression="&quot;Z end&quot;" newline="True"/>
+        </body>
+    </function>
+</flowgorithm>

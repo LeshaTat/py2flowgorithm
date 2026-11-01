@@ -2,13 +2,19 @@
 
 Flowgorithm documents its shapes and functions but not every run-time rule, and it runs only on
 Windows. The flowgorithm library, `fprg_run.py` and the converter's warnings rest on guesses for
-the rules below. `probe.fprg` settles them: open it in Flowgorithm and run it.
+the rules below. Four flowcharts settle them, run in Flowgorithm one file at a time:
+
+* `probe.fprg` — lines A to I;
+* `probe-array-start.fprg` — J: what a new array holds;
+* `probe-redeclare.fprg` — K: a Declare that runs again;
+* `probe-overflow.fprg` — L: how big an Integer gets.
 
 Flowgorithm stops at the first error, and the error message is the answer for that line. Each
 answer is recorded below, the library (`library/src/flowgorithm.py`) and `converter/src/fprg_run.py`
 are changed to match, and the line is dropped from the probe (or replaced) for the next run.
-Once the probe runs to `Z end`, its console (the window with the program's output) is compared
-with [`expected.txt`](expected.txt), which is what the library and `fprg_run.py` assume now.
+Once a file runs to `Z end`, its console (the window with the program's output) is compared with
+[`expected.txt`](expected.txt), which is what the library and `fprg_run.py` assume now, and the
+next file follows.
 
 Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
 

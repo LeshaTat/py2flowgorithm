@@ -36,12 +36,21 @@ I2 -3
 I3 3
 I4 42
 I5 -1
+Z end
+
+== probe-array-start.fprg
 J1 0
 J2 0
 J3 []
 J4 false
+Z end
+
+== probe-redeclare.fprg
 K1 round 1: row[0] set to 5
 K2 round 2: row[0] is 0
+Z end
+
+== probe-overflow.fprg
 L1 2147483648
 L2 4611686018427387904
 L3 9223372036854775808

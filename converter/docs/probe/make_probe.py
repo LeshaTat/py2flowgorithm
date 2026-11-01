@@ -5,9 +5,10 @@ fprg_run.py).
 
     python3 converter/docs/probe/make_probe.py      # writes the .fprg files and expected.txt here
 
-probe.fprg holds all the checks. Flowgorithm stops at the first error: the error message is the
-answer, so the line it stopped at is recorded in README.md, the library and fprg_run follow it, and
-the line is dropped or replaced here before the next run, until the probe runs to `Z end`.
+The files are run one at a time, probe.fprg first. Flowgorithm stops at the first error: the error
+message is the answer, so the line it stopped at is recorded in README.md, the library and fprg_run
+follow it, and the line is dropped or replaced here before the next run, until the file runs to
+`Z end`; then its console is compared with expected.txt and the next file follows.
 Every output line starts with a label (A1, B2, ...); README.md in this folder says what each label
 tests. The probes are written as flowcharts directly because the dialect rejects most of these
 constructs on purpose.
@@ -33,10 +34,10 @@ def text(line: str) -> Output:
     return Output(f'"{line}"')
 
 
-def checks() -> list:
-    """Every check, in label order. Answered checks that stop Flowgorithm are left out (see README.md)."""
+def main_checks() -> list:
+    """probe.fprg: lines A to I. Answered checks that stop Flowgorithm are left out (see README.md)."""
     return [
-        Declare(["i", "n", "rounds", "k", "big", "round"], INTEGER),
+        Declare(["i", "n", "rounds", "k"], INTEGER),
         Declare(["ok"], BOOLEAN),
         # A: how Reals are written
         show("A1", "7 / 3"), show("A2", "0.1 + 0.2"), show("A3", "2 / 3"), show("A4", "10.0 ^ 15"),
@@ -64,16 +65,37 @@ def checks() -> list:
         # I: whole numbers from Reals and text
         show("I1", "Int(-3.7)"), Assign("k", "-3.7"), show("I2", "k"), Assign("k", "3.7"), show("I3", "k"),
         show("I4", 'ToInteger("  42 ")'), show("I5", "Sgn(-0.5)"),
-        # J: what a new array holds
+        text("Z end"),
+    ]
+
+
+def array_start() -> list:
+    """probe-array-start.fprg, J: what a new array holds."""
+    return [
         Declare(["xs"], INTEGER, True, "3"), Declare(["rs"], REAL, True, "2"), Declare(["ss"], STRING, True, "2"),
         Declare(["bs"], BOOLEAN, True, "2"),
         show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]"),
-        # K: a Declare that runs again
+        text("Z end"),
+    ]
+
+
+def redeclare() -> list:
+    """probe-redeclare.fprg, K: a Declare that runs again."""
+    return [
+        Declare(["round"], INTEGER),
         For("round", "1", "2", body=[
             Declare(["row"], INTEGER, True, "2"),
             If("round == 1", [Assign("row[0]", "5"), text("K1 round 1: row[0] set to 5")],
                [show("K2 round 2: row[0] is", "row[0]")])]),
-        # L: how big an Integer gets (small literals only: a literal too big could stop the file loading)
+        text("Z end"),
+    ]
+
+
+def overflow() -> list:
+    """probe-overflow.fprg, L: how big an Integer gets (small literals only: a literal too big could
+    stop the file from loading)."""
+    return [
+        Declare(["big"], INTEGER),
         Assign("big", "2147483647"), Assign("big", "big + 1"), show("L1", "big"),
         Assign("big", "big * big"), show("L2", "big"), Assign("big", "big * 2"), show("L3", "big"),
         text("Z end"),
@@ -91,7 +113,12 @@ def probe_function() -> Function:
 
 PROBES = {
     "probe": ("Probe: run-time rules", "Run me in Flowgorithm: an error message, or the console up to Z end.",
-              checks(), [probe_function()], [[]]),
+              main_checks(), [probe_function()], [[]]),
+    "probe-array-start": ("Probe: array start values", "Does a new array start out as 0, or is it empty?",
+                          array_start(), [], [[]]),
+    "probe-redeclare": ("Probe: declare in a loop", "What does a Declare do when it runs again?",
+                        redeclare(), [], [[]]),
+    "probe-overflow": ("Probe: Integer size", "How big can an Integer get?", overflow(), [], [[]]),
 }
 
 

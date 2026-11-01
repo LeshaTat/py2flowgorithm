@@ -150,7 +150,7 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
 * The browser viewer [FlowgorithmJS](https://andreaval.github.io/FlowgorithmJS/drawLocal.html)
   opens the generated files too; Flowgorithm itself (Windows, or the macOS port
   [jostasik/Flowgorithm-macOS](https://github.com/jostasik/Flowgorithm-macOS)) is the final proof.
-* `docs/probe/` — a flowchart that shows, run in real Flowgorithm, the run-time rules
+* `docs/probe/` — four small flowcharts that show, run in real Flowgorithm, the run-time rules
   the library and `fprg_run.py` had to guess (how Reals are printed, `ToFixed` rounding, `%`,
   `and`/`or`, String order, the For counter, array start values, Integer size). Its README says
   what each output line means and lists the answers found so far.
