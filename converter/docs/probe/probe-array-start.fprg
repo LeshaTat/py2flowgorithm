@@ -8,7 +8,30 @@
     <function name="Main" type="None" variable="">
         <parameters/>
         <body>
+            <declare name="fill" type="Integer" array="False" size=""/>
             <output expression="&quot;A11 &quot; &amp; (Sqrt(2) * Sqrt(2))" newline="True"/>
+            <declare name="xs" type="Integer" array="True" size="3"/>
+            <for variable="fill" start="0" end="2" direction="inc" step="1">
+                <assign variable="xs[fill]" expression="0"/>
+            </for>
+            <declare name="rs" type="Real" array="True" size="2"/>
+            <for variable="fill" start="0" end="1" direction="inc" step="1">
+                <assign variable="rs[fill]" expression="0.0"/>
+            </for>
+            <declare name="ss" type="String" array="True" size="2"/>
+            <for variable="fill" start="0" end="1" direction="inc" step="1">
+                <assign variable="ss[fill]" expression="&quot;&quot;"/>
+            </for>
+            <declare name="bs" type="Boolean" array="True" size="2"/>
+            <for variable="fill" start="0" end="1" direction="inc" step="1">
+                <assign variable="bs[fill]" expression="false"/>
+            </for>
+            <output expression="&quot;J1 &quot; &amp; (xs[0])" newline="True"/>
+            <output expression="&quot;J2 &quot; &amp; (rs[1])" newline="True"/>
+            <output expression="&quot;J3 &quot; &amp; (&quot;[&quot; &amp; ss[0] &amp; &quot;]&quot;)" newline="True"/>
+            <output expression="&quot;J4 &quot; &amp; (bs[1])" newline="True"/>
+            <declare name="empty" type="String" array="True" size="2"/>
+            <output expression="&quot;J5 &quot; &amp; (empty[0])" newline="True"/>
             <output expression="&quot;Z end&quot;" newline="True"/>
         </body>
     </function>

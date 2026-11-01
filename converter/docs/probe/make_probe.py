@@ -74,10 +74,17 @@ def main_checks() -> list:
 
 
 def array_start() -> list:
-    """probe-array-start.fprg. J (what a new array holds) is answered: nothing, reading stops the
-    program. A11 rides along: are function results rounded to 15 digits too (2.00000000000001), or
-    only operator results (2)?"""
-    return [show("A11", "Sqrt(2) * Sqrt(2)"), text("Z end")]
+    """probe-array-start.fprg. A new array holds no values (answered: reading one stops the program),
+    so J1-J4 fill an array of each type first, the way the converter does, and should print; J5 reads
+    an unfilled String array and should stop with "Variable Not Initialized". A11: are function
+    results rounded to 15 digits too (answered: yes)?"""
+    shapes = [Declare(["fill"], INTEGER), show("A11", "Sqrt(2) * Sqrt(2)")]
+    for name, kind, size, value in (("xs", INTEGER, 3, "0"), ("rs", REAL, 2, "0.0"), ("ss", STRING, 2, '""'),
+                                    ("bs", BOOLEAN, 2, "false")):
+        shapes += [Declare([name], kind, True, str(size)),
+                   For("fill", "0", str(size - 1), body=[Assign(f"{name}[fill]", value)])]
+    return shapes + [show("J1", "xs[0]"), show("J2", "rs[1]"), show("J3", '"[" & ss[0] & "]"'), show("J4", "bs[1]"),
+                     Declare(["empty"], STRING, True, "2"), show("J5", "empty[0]"), text("Z end")]
 
 
 def redeclare() -> list:

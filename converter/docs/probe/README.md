@@ -31,7 +31,7 @@ Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
 | G1, G2 | do `and` / `or` skip their right side? | no: both `Probe(...) was evaluated` lines appear | — (answered) |
 | H1–H3 | the For counter after the loop; an end that changes inside | `4`, `2` rounds, `0` | — (answered) |
 | I1–I5 | `Int`, a Real into an Integer, `ToInteger("  42 ")`, `Sgn` | `-3`, `-3`, `3`, `42`, `-1` | — (answered) |
-| J1–J4 | what a new array holds (`probe-array-start.fprg`) | nothing: reading stops the program | — (answered) |
+| J1–J5 | arrays (`probe-array-start.fprg`) | filled first as the converter does: `0`, `0`, `[]`, `false`; J5 reads an unfilled String array and stops ("not initialized") | J1–J4 stop, or J5 prints |
 | K1, K2 | a Declare that runs again (`probe-redeclare.fprg`) | a new array without values: K2 stops with "not initialized" | the old array (`5`), or an error at the Declare |
 | L1–L3 | how big an Integer gets (`probe-overflow.fprg`) | no limit | L1 `-2147483648` or an error (32 bits); L3 wraps or stops (64 bits) |
 
