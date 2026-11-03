@@ -12,7 +12,20 @@ one — runs and tests it like any Python program, and gets the flowchart from i
 * **Written by AI:** the library, the converter and the examples were written by Claude Opus 5.5,
   an AI model made by Anthropic.
 
-Save this example as `sum.py` after completing [Getting started](#getting-started):
+To try conversion before installing anything, clone this repository and save the example
+below as `sum.py` in its root folder. With Python 3.11 or newer, generate the flowchart from
+that folder:
+
+```bash
+PYTHONPATH=converter/src python3 -m py2fprg sum.py
+```
+
+This writes `sum.fprg` next to `sum.py`; open it in Flowgorithm. In Windows PowerShell:
+
+```powershell
+$env:PYTHONPATH = "$PWD\converter\src"
+py -m py2fprg sum.py
+```
 
 ```python
 """Sum of Numbers.
@@ -39,11 +52,12 @@ if __name__ == "__main__":
 ```
 
 ```bash
-python3 sum.py      # run it: it behaves the way the flowchart will
-py2fprg sum.py      # -> sum.fprg, open it in Flowgorithm
+PYTHONPATH=library/src python3 sum.py      # run the Python example without installation
 ```
 
-Enter `5` when prompted; the program prints `The sum is 15`.
+In PowerShell, set `$env:PYTHONPATH = "$PWD\library\src"` and run `py sum.py` instead.
+Enter `5` when prompted; the program prints `The sum is 15`. After
+[installation](#getting-started), use `python3 sum.py` and `py2fprg sum.py` directly.
 Import each library name you use explicitly: add `Random`, `ToFixed`, or other functions
 to the import when needed. This makes dependencies visible to readers and editors.
 
