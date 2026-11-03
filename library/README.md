@@ -1,7 +1,8 @@
 # flowgorithm — Flowgorithm's statements and functions for Python
 
-The library a program imports to be written the Flowgorithm way. `from flowgorithm import *`
-gives Flowgorithm's Output and Input statements and its built-in functions, with Flowgorithm's
+The library a program imports to be written the Flowgorithm way. Import the names your program
+uses, such as `from flowgorithm import Input, Output`. The library provides console statements
+and built-in functions with Flowgorithm's
 behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the
 [examples](../examples) show whole programs. The library was written by Claude Opus 5.5, an AI
@@ -13,7 +14,7 @@ together with the converter by running `python3 install.py` at the repository ro
 too; or just copy `src/flowgorithm.py` next to the program.
 
 ```python
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def main():
@@ -71,6 +72,8 @@ A program is ordinary Python, so it can be tested with `unittest`, even in the s
 converter leaves test classes out of the flowchart). `console` plays the user:
 
 ```python
+from flowgorithm import console
+
 with console("3", "Ann", randoms=[4]) as screen:   # typed answers; values Random() returns
     book_seat(booked, names)
 self.assertIn("Customer name?", screen.text)       # what Output showed

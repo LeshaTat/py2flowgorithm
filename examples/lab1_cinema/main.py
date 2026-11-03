@@ -9,7 +9,7 @@ the start. A menu shows the seats until the user quits.
 # run them all with: python3 -m unittest discover -p "*.py"
 import unittest
 
-from flowgorithm import *
+from flowgorithm import Output, console
 from menu import QUIT, SHOW, read_choice
 from task_1_1 import SEATS, book, show_map
 

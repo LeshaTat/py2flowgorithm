@@ -2,7 +2,7 @@
 
 The Fibonacci numbers, with a loop and with recursion.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def fib(n: int) -> int:

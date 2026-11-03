@@ -2,7 +2,7 @@
 
 Euclid's algorithm, with a loop and with recursion.
 """
-from flowgorithm import *
+from flowgorithm import Input, Int, Output
 
 
 def gcd(a: int, b: int) -> int:

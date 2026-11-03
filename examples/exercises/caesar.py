@@ -2,7 +2,7 @@
 
 Shift every letter of a message by a key.
 """
-from flowgorithm import *
+from flowgorithm import Char, Input, Len, Output, ToChar, ToCode
 
 
 def shift(c: str, key: int) -> str:

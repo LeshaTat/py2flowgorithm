@@ -12,11 +12,13 @@ one — runs and tests it like any Python program, and gets the flowchart from i
 * **Written by AI:** the library, the converter and the examples were written by Claude Opus 5.5,
   an AI model made by Anthropic.
 
+Save this example as `sum.py` after completing [Getting started](#getting-started):
+
 ```python
 """Sum of Numbers.
 
 Adds up the numbers from 1 to n."""
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def total_to(n: int) -> int:
@@ -41,6 +43,14 @@ python3 sum.py      # run it: it behaves the way the flowchart will
 py2fprg sum.py      # -> sum.fprg, open it in Flowgorithm
 ```
 
+Enter `5` when prompted; the program prints `The sum is 15`.
+Import each library name you use explicitly: add `Random`, `ToFixed`, or other functions
+to the import when needed. This makes dependencies visible to readers and editors.
+
+This accepts a [restricted Python dialect](converter/README.md#the-dialect), not arbitrary
+Python. See the converter documentation for supported syntax and
+[differences in runtime behaviour](converter/README.md#what-can-still-differ).
+
 This repository holds three projects:
 
 | Folder | What it is |
@@ -51,7 +61,9 @@ This repository holds three projects:
 
 ## Getting started
 
-You need Python 3.11 or newer; nothing outside the standard library.
+You need Python 3.11 or newer. Running Python programs and converting them to `.fprg` needs
+only the standard library. Open the generated files in Flowgorithm to view and run them there;
+the optional SVG renderer requires Graphviz.
 
 1. Clone this repository and install the library and the converter for your Python (see
    [install.py](#installpy)):
@@ -96,7 +108,7 @@ py -m unittest discover -s tests
 ## install.py
 
 `python3 install.py` installs the library and the converter for the Python that runs it: that
-Python's programs can then `from flowgorithm import *`, and `py2fprg` works in any folder.
+Python's programs can then `from flowgorithm import Input, Output`, and `py2fprg` works in any folder.
 
 If the shell says `py2fprg: command not found` try `python3 -m py2fprg`.
 Uninstall: `python3 install.py --uninstall`.

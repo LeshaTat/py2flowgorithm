@@ -2,7 +2,7 @@
 
 Count the (lower-case) vowels in a sentence.
 """
-from flowgorithm import *
+from flowgorithm import Char, Input, Len, Output
 
 
 def is_vowel(c: str) -> bool:

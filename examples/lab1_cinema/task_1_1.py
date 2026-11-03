@@ -5,7 +5,7 @@ says which seats are taken.
 """
 import unittest
 
-from flowgorithm import *
+from flowgorithm import Output, ToString, console
 
 SEATS = 10
 

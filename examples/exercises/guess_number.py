@@ -3,7 +3,7 @@
 The classic Flowgorithm exercise: the computer picks a number from 1 to 100 and the
 player guesses until it is found.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output, Random
 
 MAX_NUMBER = 100
 

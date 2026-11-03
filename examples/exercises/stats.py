@@ -2,7 +2,7 @@
 
 Read some numbers and show the smallest, the largest, the average and how many are above it.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output, ToFixed
 
 
 def read_count() -> int:

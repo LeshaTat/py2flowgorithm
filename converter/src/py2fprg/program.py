@@ -5,7 +5,7 @@ The structure is fixed:
     \"\"\"Title of the program.
 
     What it does (becomes the program's description).\"\"\"
-    from flowgorithm import *
+    from flowgorithm import Input, Output
     from seats import SEATS, seat_map   # functions and constants from files in the same folder
 
     LIMIT = 10                      # constants: literal values, copied into the functions using them
@@ -156,7 +156,7 @@ class ProgramBuilder:
                 self.load_import(m, s)
             elif isinstance(s, (ast.Import, ast.ImportFrom)):
                 raise self.err("a Flowgorithm program imports only the library and files in its folder", s,
-                               "`from flowgorithm import *`, `from seats import seat_map`", m)
+                               "`from flowgorithm import Input, Output`, `from seats import seat_map`", m)
             elif isinstance(s, ast.FunctionDef):
                 if program or s.name != "main":  # another file's main() is that file's own program
                     self.register_function(m, s, imported=not program)

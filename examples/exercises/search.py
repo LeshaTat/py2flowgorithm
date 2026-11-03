@@ -2,7 +2,7 @@
 
 Find a value in an array.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output, Size, ToFixed
 
 
 def main():

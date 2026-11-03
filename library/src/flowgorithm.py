@@ -1,7 +1,8 @@
 """flowgorithm - write a Flowgorithm program in Python.
 
-Put this file next to your program and start it with ``from flowgorithm import *``. You get
-Flowgorithm's console statements and its built-in functions, with Flowgorithm's behaviour:
+Put this file next to your program and import the names you use, for example
+``from flowgorithm import Input, Output``. The library provides Flowgorithm's console
+statements and built-in functions, with Flowgorithm's behaviour:
 
 * ``Output(value, ...)`` prints like Flowgorithm's Output shape: the values joined without
   spaces (``Output("Total: ", total)`` is ``"Total: " & total``), numbers the way Flowgorithm
@@ -14,7 +15,7 @@ Flowgorithm's console statements and its built-in functions, with Flowgorithm's 
   functions (``Int`` cuts off the fraction, ``Char(s, i)`` counts from 0, ``Random(n)`` gives
   0 .. n-1, ``ToFixed(x, 2)`` gives a String, ...).
 
-For tests, ``with console("3", "Ann") as screen:`` runs code as if those answers were typed (and
+For tests, import ``console`` too. ``with console("3", "Ann") as screen:`` runs code as if those answers were typed (and
 ``console(..., randoms=[4])`` makes Random() give 4); ``screen.text`` is what Output showed.
 
 Running the Python program then shows what the flowchart will show, and ``py2fprg`` turns it

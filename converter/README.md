@@ -32,11 +32,15 @@ environment, `pip install -e converter` works too; without installing, run
 
 Every program has the same structure:
 
+Import the library names the program uses explicitly, for example
+`from flowgorithm import Input, Output, Random`. Wildcard imports remain supported for
+existing programs.
+
 ```python
 """Title of the program.
 
 What it does: this becomes the program's description in Flowgorithm."""
-from flowgorithm import *
+from flowgorithm import Input, Output
 from seats import SEATS, seat_map    # functions and constants from files in the same folder
 
 MAX_TRIES = 5                        # constants: literal values (copied into the functions using them)

@@ -2,7 +2,7 @@
 
 Turn scores into letter grades until the user types -1.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def letter(score: int) -> str:

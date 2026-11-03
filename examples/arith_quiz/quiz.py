@@ -4,7 +4,7 @@ The player chooses how many questions to answer, solves random addition, subtrac
 and multiplication problems and gets a grade. test_quiz.py checks the functions and
 plays whole games with scripted answers.
 """
-from flowgorithm import *
+from flowgorithm import Char, Input, Int, Len, Output, Random, Size, ToString
 
 MAX_QUESTIONS = 10
 MAX_NUMBER = 12

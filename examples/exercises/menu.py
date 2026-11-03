@@ -2,7 +2,7 @@
 
 A small calculator driven by a menu.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def show_menu():

@@ -2,7 +2,7 @@
 
 Show a number in base 2.
 """
-from flowgorithm import *
+from flowgorithm import Input, Int, Output, ToString
 
 
 def to_binary(n: int) -> str:

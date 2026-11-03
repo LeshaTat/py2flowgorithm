@@ -2,7 +2,7 @@
 
 Count the words of a sentence and find the longest one.
 """
-from flowgorithm import *
+from flowgorithm import Char, Input, Len, Output
 
 
 def main():
