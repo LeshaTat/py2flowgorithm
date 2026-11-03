@@ -1,56 +1,98 @@
 # Flowgorithm exercises in Python
 
-Programs written in Python the Flowgorithm way, with the
-[`flowgorithm` library](../library), each next to the flowchart the [converter](../converter)
-makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own project. The
-examples were written by Claude Opus 5.5, an AI model made by Anthropic, like the library and the
-converter.
+These programs use the [`flowgorithm` library](../library/README.md). Each program is stored
+beside its generated `.fprg` flowchart, which opens in Flowgorithm. Copy an example to start
+your own project, or use it to learn the [supported Python dialect](../converter/README.md#the-dialect).
 
-* `arith_quiz/` — an arithmetic quiz with input validation, arrays, Random and eleven small
-  functions, with its own unit tests (`test_quiz.py`): how a program is tested.
-* `exercises/` — sixteen classic first exercises, each a short program: `guess_number` (the
-  classic guessing game: a Do loop, `elif`, a function, a constant), `fizzbuzz` (`%`,
-  `elif`), `primes` (a Boolean function, a While with two conditions), `bubble` (an array, nested
-  For loops, a swap), `palindrome` (`Char`, `Len`, a For counting down), `binary` (building a
-  String, `Int(n / 2)`), `search` (a While with a found flag instead of `break`, the largest
-  value, `ToFixed`), `table` (nested loops, `newline=False`, a For with a step), `gcd` (a loop and
-  recursion), `vowels` (a function returning a condition), `grades` (`elif` chains, a loop that
-  stops at -1), `caesar` (`ToCode`/`ToChar` arithmetic), `words` (taking a String apart), `stats`
-  (an array sized by the input, an array parameter, a checked input in a Do loop), `menu` (a menu
-  in a Do loop, functions without a result), `fib` (a running sequence, and recursion).
-* `lab1_cinema/` — the start of a lab: Lab 1 Cinema Seats with task 1.1 done, in the layout the
-  lab keeps to the end (`main.py` the program, already a menu, a file for each task with its
-  tests inside, a `.vscode` folder for VS Code). Copy that folder alone to start the lab; its
-  README says how it goes on.
-* `tests/test_examples.py` — runs every program in Python and its `.fprg` in `fprg_run` (the
-  converter's interpreter of `.fprg` files, not Flowgorithm) and checks that both print the same.
+The examples were written with Claude Opus 5.5 (Anthropic) and GPT-6 Astra (OpenAI), like the
+library and converter.
+
+## Examples
+
+| Folder or file | What it demonstrates |
+|---|---|
+| [`exercises/`](exercises/) | Sixteen short exercises covering loops, strings, arrays, functions and recursion |
+| [`arith_quiz/`](arith_quiz/README.md) | An arithmetic quiz with input validation, random questions, arrays and separate unit tests |
+| [`lab1_cinema/`](lab1_cinema/README.md) | A program split across files, tests beside the functions, and VS Code run/test configurations |
+| [`tests/test_examples.py`](tests/test_examples.py) | Checks that each Python program and its flowchart print the same output and that saved flowcharts are up to date |
+
+The short exercises are:
+
+| Program | Topics |
+|---|---|
+| [`guess_number.py`](exercises/guess_number.py) | Random numbers, a Do loop and branches |
+| [`fizzbuzz.py`](exercises/fizzbuzz.py) | Remainders and conditions |
+| [`primes.py`](exercises/primes.py) | Boolean functions and nested loops |
+| [`bubble.py`](exercises/bubble.py) | Array sorting and swapping elements |
+| [`palindrome.py`](exercises/palindrome.py) | String indexing and a loop that counts down |
+| [`binary.py`](exercises/binary.py) | Building a string and integer conversion |
+| [`search.py`](exercises/search.py) | Array search with a found flag |
+| [`table.py`](exercises/table.py) | Nested loops, step sizes and formatted output |
+| [`gcd.py`](exercises/gcd.py) | Loops and recursion |
+| [`grades.py`](exercises/grades.py) | Branches and sentinel input |
+| [`caesar.py`](exercises/caesar.py) | Character codes and string conversion |
+| [`stats.py`](exercises/stats.py) | Arrays sized by input and array parameters |
+| [`vowels.py`](exercises/vowels.py) | Character tests and counting |
+| [`words.py`](exercises/words.py) | Finding word boundaries in a string |
+| [`menu.py`](exercises/menu.py) | A repeating menu and functions |
+| [`fib.py`](exercises/fib.py) | Iteration and recursion |
 
 ## Your own project
 
-The library and the converter are installed once, from the
-[py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository (`python3 install.py`
-there; see its README). Then:
+No installation is needed. From the repository root, copy the examples and put the library
+beside the exercise programs:
 
 ```bash
-cp -r examples ~/my-flowgorithm      # in the py2flowgorithm repository
-cd ~/my-flowgorithm
-git init
+cp -r examples ~/my-flowgorithm
+cp library/src/flowgorithm.py ~/my-flowgorithm/exercises/
+python3 ~/my-flowgorithm/exercises/fizzbuzz.py
+python3 py2fprg.py ~/my-flowgorithm/exercises/fizzbuzz.py
 ```
 
-Write a program like the ones here (the dialect is described in the
-[converter's README](../converter/README.md)), and work with it:
+The last command writes `fizzbuzz.fprg` beside the copied program. To convert all the short
+exercises, pass `~/my-flowgorithm/exercises/` instead of the file path. Folder conversion does
+not descend into subfolders.
+
+In Windows PowerShell, from the repository root:
+
+```powershell
+Copy-Item -Recurse examples $HOME\my-flowgorithm
+Copy-Item library\src\flowgorithm.py $HOME\my-flowgorithm\exercises\
+py $HOME\my-flowgorithm\exercises\fizzbuzz.py
+py py2fprg.py $HOME\my-flowgorithm\exercises\fizzbuzz.py
+```
+
+If you use the quiz or cinema example, copy `flowgorithm.py` into that example's folder too;
+see its README for commands. Use a new destination folder when copying an example project.
+You can then run `git init` in the copied project to track your changes.
+
+The optional [install.py setup](../README.md#installpy) makes the library and converter tools
+available from any folder for your Python. With that setup, library copies are unnecessary,
+and `py2fprg program.py` or `python3 -m py2fprg program.py` converts a program from its own
+folder. Use `py` in place of `python3` on Windows.
+
+## Tests and new programs
+
+In the original checkout, run `python3 run_tests.py` from the repository root; it needs no
+installation. To run only the example comparison tests from the root, use:
 
 ```bash
-python3 exercises/fizzbuzz.py              # run it
-py2fprg exercises/fizzbuzz.py              # make its flowchart (py2fprg exercises: the whole folder)
-python3 -m unittest discover -s tests      # each program and its .fprg must print the same
+python3 -m unittest discover -s examples/tests -v
 ```
 
-On Windows, type `py` for `python3`, and `py -m py2fprg` for `py2fprg` (it works even when the
-command's folder is not on PATH).
+For a standalone copy of `examples/`, the comparison tests also need the library and
+converter tools on Python's import path. The optional setup supplies them. From the copied
+project root, run `python3 -m unittest discover -s tests -v`. The quiz and cinema READMEs show
+how to run their own unit tests with just a local library copy.
 
-Every program gets its runs in the `RUNS` table of `tests/test_examples.py`: the answers it is
-given, the values `Random()` returns, and texts the console must show. The test then requires
-that the Python program and its `.fprg`, run in `fprg_run`, print exactly the same, and that each saved `.fprg` is
-what the converter makes of the program today (run `py2fprg` again after a change). Unit tests of
-a program's functions go next to it, as in `arith_quiz/test_quiz.py`.
+When adding a program:
+
+1. Give it a `main()` function and follow the dialect. Add unit tests for its functions.
+2. Generate its `.fprg` file with the converter; keep the Python source and flowchart together.
+3. Add its relative path to `RUNS` in `tests/test_examples.py`, with input answers, fixed random
+   values where needed, and expected output fragments.
+4. Run the comparison tests. They check that every program has a `RUNS` entry, that its Python
+   and interpreted flowchart output agree, and that the saved `.fprg` matches a fresh conversion.
+
+Regenerate the flowchart after changing a program. The comparison tests use this project's
+`fprg_run` interpreter; open the flowchart in Flowgorithm to check it there as well.

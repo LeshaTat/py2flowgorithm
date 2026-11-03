@@ -1,7 +1,7 @@
 """The menu, and asking for a number until it is in range."""
 import unittest
 
-from flowgorithm import *
+from flowgorithm import Input, Output, console
 
 # the menu
 SHOW = 1

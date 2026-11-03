@@ -2,7 +2,7 @@
 
 Print the numbers from 1 to n; multiples of 3 are Fizz, of 5 Buzz, of both FizzBuzz.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def main():

@@ -3,7 +3,7 @@
     python3 install.py              # install (again after moving this folder)
     python3 install.py --uninstall  # remove what it added
 
-Afterwards every program run with this Python can `from flowgorithm import *`, and the commands
+Afterwards every program run with this Python can `from flowgorithm import Input, Output`, and the commands
 py2fprg, fprg-run, fprg-lint and fprg2svg work in any folder (as do `python3 -m py2fprg` and
 `python3 -m fprg_run`). Nothing is copied: Python reads both projects from this folder, so a
 `git pull` here updates them.

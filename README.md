@@ -1,22 +1,47 @@
-# Converter from Python to Flowgorithm
+# Python to Flowgorithm
 
-[Flowgorithm](http://www.flowgorithm.org) programs are drawn as flowcharts, shape by shape. Here a
-student writes the program in Python instead — in a small dialect that matches Flowgorithm one to
-one — runs and tests it like any Python program, and gets the flowchart from it.
+Write and test a program in Python, then convert it to a [Flowgorithm](http://www.flowgorithm.org)
+flowchart (`.fprg`). This project is for students who prefer writing code and need a flowchart
+of their program. It accepts a [small Python dialect](converter/README.md#the-dialect) that maps
+to Flowgorithm's shapes.
 
-* **Who it is for:** students who already know how to code and have no trouble editing code in
-  text files. The purpose is to make some use of Flowgorithm for them.
-* **The conversion is one-way:** from Python to the flowchart. Nothing turns a `.fprg` back into
-  Python, so a change made in Flowgorithm never reaches the program, and converting again
-  overwrites it: change the Python and convert again.
-* **Written by AI:** the library, the converter and the examples were written by Claude Opus 5.5,
-  an AI model made by Anthropic.
+Conversion is one-way. Edit the Python source and convert again; converting overwrites the
+`.fprg` file, including changes made in Flowgorithm.
+
+Installation is optional. Copy `library/src/flowgorithm.py` next to your Python program to run
+it, and use the converter directly from this checkout to generate its flowchart. The optional
+[install.py](#installpy) makes the library and converter commands available from any folder
+for your chosen Python.
+
+The library, converter and examples were written with Claude Opus 5.5 (Anthropic) and
+GPT-6 Astra (OpenAI).
+
+## Getting started
+
+You need Python 3.11 or newer. Running the Python programs and generating `.fprg` files uses
+only the standard library. Flowgorithm opens and runs the generated flowcharts; Graphviz is
+needed only for optional SVG previews.
+
+Clone the repository and enter its folder:
+
+```bash
+git clone https://github.com/LeshaTat/py2flowgorithm.git
+cd py2flowgorithm
+```
+
+Save the example below as `sum.py` in that folder. Generate `sum.fprg` with:
+
+```bash
+python3 py2fprg.py sum.py
+```
+
+On Windows, use `py py2fprg.py sum.py`. Open `sum.fprg` in Flowgorithm.
 
 ```python
 """Sum of Numbers.
 
 Adds up the numbers from 1 to n."""
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def total_to(n: int) -> int:
@@ -36,93 +61,107 @@ if __name__ == "__main__":
     main()
 ```
 
+To run the same program in Python, copy the library beside it:
+
 ```bash
-python3 sum.py      # run it: it behaves the way the flowchart will
-py2fprg sum.py      # -> sum.fprg, open it in Flowgorithm
+cp library/src/flowgorithm.py .
+python3 sum.py
 ```
 
-This repository holds three projects:
-
-| Folder | What it is |
-|---|---|
-| [`library/`](library/) | `flowgorithm`: Flowgorithm's `Output`, `Input` and built-in functions, with Flowgorithm's behaviour — every program imports it |
-| [`converter/`](converter/) | `py2fprg`: turns such a program into a `.fprg` flowchart and defines the dialect; tools to check, draw and run `.fprg` files |
-| [`examples/`](examples/) | a starting point for your own work: example programs with their flowcharts and tests |
-
-## Getting started
-
-You need Python 3.11 or newer; nothing outside the standard library.
-
-1. Clone this repository and install the library and the converter for your Python (see
-   [install.py](#installpy)):
-
-   ```bash
-   git clone https://github.com/LeshaTat/py2flowgorithm.git
-   cd py2flowgorithm
-   python3 install.py
-   ```
-
-2. Start your own project from the examples, in a repository of its own:
-
-   ```bash
-   cp -r examples ~/my-flowgorithm
-   cd ~/my-flowgorithm
-   git init
-   python3 exercises/fizzbuzz.py            # run a program
-   py2fprg exercises                        # make the flowcharts of a folder
-   python3 -m unittest discover -s tests    # each program and its .fprg must print the same
-   ```
-
-   The test runs each program in Python and its `.fprg` in `fprg_run`, the converter's
-   interpreter of `.fprg` files (not Flowgorithm), on the same typed answers.
-
-   [`examples/README.md`](examples/README.md) explains the folder and how to add programs. A lab
-   starts from one folder of it instead: `cp -r examples/lab1_cinema ~/lab1-cinema` (see
-   [its README](examples/lab1_cinema/README.md)).
-
-On Windows, where Flowgorithm runs, the same steps in PowerShell (`py -m py2fprg` works whether
-or not the launchers' folder is on PATH):
+In Windows PowerShell:
 
 ```powershell
-py install.py                                   # in the repository folder
-Copy-Item -Recurse examples $HOME\my-flowgorithm
-cd $HOME\my-flowgorithm
-git init
-py exercises\fizzbuzz.py
-py -m py2fprg exercises
-py -m unittest discover -s tests
+Copy-Item library\src\flowgorithm.py .
+py sum.py
 ```
+
+Enter `5` when prompted; the program prints `The sum is 15`.
+
+Your program can live anywhere. Copy `flowgorithm.py` beside it, then use the converter's
+path to generate its flowchart:
+
+```bash
+python3 /path/to/py2flowgorithm/py2fprg.py /path/to/sum.py
+```
+
+Replace the example paths with your own; `sum.fprg` is written beside `sum.py`. Conversion
+reads the Python source without running it, so it does not need the copied library file.
+
+## Examples and reference
+
+| Folder | Contents |
+|---|---|
+| [Library](library/README.md) | `Input`, `Output`, built-in functions and helpers for testing Python programs |
+| [Converter](converter/README.md) | Supported Python syntax, conversion options, and tools to validate, draw and run `.fprg` files |
+| [Examples](examples/README.md) | Programs with their generated flowcharts and tests; instructions for starting your own project |
+
+Start with the [short exercises](examples/README.md#examples), the
+[arithmetic quiz](examples/arith_quiz/README.md), or the
+[cinema lab](examples/lab1_cinema/README.md). The converter reference also explains
+[where Python and Flowgorithm can differ](converter/README.md#what-can-still-differ).
 
 ## install.py
 
-`python3 install.py` installs the library and the converter for the Python that runs it: that
-Python's programs can then `from flowgorithm import *`, and `py2fprg` works in any folder.
+Installation is only a convenience for working across project folders. Run this once from the
+repository root with the Python you want to use:
 
-If the shell says `py2fprg: command not found` try `python3 -m py2fprg`.
-Uninstall: `python3 install.py --uninstall`.
+```bash
+python3 install.py
+```
+
+On Windows, use `py install.py`. Afterward, that Python can import the library without a local
+copy of `flowgorithm.py`, and these commands work from your project folder:
+
+```bash
+python3 sum.py
+python3 -m py2fprg sum.py
+```
+
+You can also use the shorter `py2fprg sum.py` if the launchers' folder is on `PATH`.
+The installer prints that location. In PowerShell, use `py` in place of `python3`.
+
+The installer references this checkout rather than copying its source files. Keep the checkout
+in place; if you move it, run `install.py` again from its new location. Updates in this checkout
+take effect directly. Setup applies to the selected Python environment, including an active
+virtual environment, rather than every Python installation on the machine.
+
+To remove the import paths and launchers it added, use the same Python:
+
+```bash
+python3 install.py --uninstall
+```
 
 ## VS Code
 
-The cinema example, [`examples/lab1_cinema`](examples/lab1_cinema/), comes with a `.vscode`
-folder that sets VS Code up for the project. Copied into another project whose program is
-`main.py`, it works there the same. It needs VS Code's Python extension.
+The [cinema example](examples/lab1_cinema/README.md#vs-code) includes a `.vscode` folder with
+run, conversion and test configurations for a project whose entry point is `main.py`.
+Its README explains the setup with or without installation.
 
-First pick the Python that `install.py` was run with: Python: Select Interpreter in the Command
-Palette (Ctrl+Shift+P, Cmd+Shift+P on a Mac).
+## Troubleshooting
 
-To convert, open Run and Debug, choose Convert to Flowgorithm and press the green arrow (or F5,
-or Run > Start Debugging): it writes the flowchart of every program in the folder, here
-`main.fprg`. Terminal > Run Build Task (Ctrl+Shift+B, Cmd+Shift+B on a Mac) converts too and
-lists the converter's errors in Problems, each with a link to its line.
-
-To run the program, choose Play main.py in Run and Debug the same way.
-
-The unit tests are in the Testing view: VS Code finds the tests in every `.py` file of the
-project and runs one test, one file's or all of them from there.
+| Problem | What to check |
+|---|---|
+| `No module named 'flowgorithm'` | Copy `library/src/flowgorithm.py` beside the program that imports it, or run `install.py` with the Python used to run that program. |
+| `py2fprg: command not found` | Run `python3 /path/to/py2flowgorithm/py2fprg.py program.py` directly, or use `python3 -m py2fprg program.py` after optional installation. |
+| `No module named 'py2fprg'` | Use the checkout launcher, or run `install.py` with the same Python interpreter. In VS Code, check **Python: Select Interpreter**. |
+| SVG rendering cannot find `dot` | Graphviz's `dot` executable must be on `PATH`. Generating `.fprg` files does not need Graphviz. |
+| Conversion reports unsupported Python | Follow the file and line in the error and consult the [dialect reference](converter/README.md#the-dialect). |
 
 ## Tests
 
-`python3 run_tests.py` runs the tests of all three projects with this folder's code. They include
-the check that matters most: every example and test program is converted with py2fprg, its
-`.fprg` is run in `fprg_run` (the converter's interpreter of `.fprg` files, not Flowgorithm), and
-it must print exactly what the Python program prints.
+Run all five test suites from the repository root; installation is not required:
+
+```bash
+python3 run_tests.py
+```
+
+The runner uses this checkout's library and converter. Tests compare example programs with
+their generated flowcharts using `fprg_run`, check that saved example flowcharts are up to date,
+and exercise the library and converter tools. `fprg_run` is this project's interpreter;
+comparison with it does not replace checking a flowchart in Flowgorithm itself.
+
+Nine tests in `SampleFilesTest` use external Flowgorithm sample files that are not included in
+this repository. They skip when the sample folder is absent. If you have the matching files,
+set `FPRG_SAMPLES` to their folder; the filenames are listed in
+[`converter/tests/test_fprg_run.py`](converter/tests/test_fprg_run.py).
+Graphviz rendering tests also skip when `dot` is unavailable.

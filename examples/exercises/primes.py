@@ -2,7 +2,7 @@
 
 List the prime numbers up to a limit.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 
 def is_prime(n: int) -> bool:

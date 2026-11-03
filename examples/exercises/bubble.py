@@ -2,7 +2,7 @@
 
 Read numbers into an array, sort them and print them.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output
 
 COUNT = 5
 

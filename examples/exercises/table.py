@@ -2,7 +2,7 @@
 
 A multiplication table and a temperature table.
 """
-from flowgorithm import *
+from flowgorithm import Input, Output, ToFixed
 
 
 def main():

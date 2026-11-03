@@ -2,7 +2,7 @@
 
 Is a word the same backwards?
 """
-from flowgorithm import *
+from flowgorithm import Char, Input, Len, Output
 
 
 def is_palindrome(word: str) -> bool:
