@@ -12,8 +12,11 @@ option for now: Show seats, which shows task 1.1's map. Copy this folder to star
 | `main.fprg` | the flowchart of main.py, with every function it uses |
 | `.vscode/` | VS Code: the tests in the Testing view, buttons to play the program and to convert it |
 
-Needs the flowgorithm library and the converter, installed once with `python3 install.py` in the
-[py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository.
+No installation is required: copy `library/src/flowgorithm.py` from the
+[py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository into the lab folder and
+convert with `python3 /path/to/py2flowgorithm/py2fprg.py main.py`.
+The commands and VS Code setup below assume the optional `python3 install.py` convenience
+setup, which makes the library and converter commands available from any folder for your Python.
 
 ```bash
 cp -r examples/lab1_cinema ~/lab1-cinema       # in the py2flowgorithm repository

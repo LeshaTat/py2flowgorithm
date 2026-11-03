@@ -9,12 +9,16 @@ one — runs and tests it like any Python program, and gets the flowchart from i
 * **The conversion is one-way:** from Python to the flowchart. Nothing turns a `.fprg` back into
   Python, so a change made in Flowgorithm never reaches the program, and converting again
   overwrites it: change the Python and convert again.
-* **Written by AI:** the library, the converter and the examples were written by Claude Opus 5.5,
-  an AI model made by Anthropic.
+* **Written by AI:** the library, the converter and the examples were written with Claude Opus 5.5
+  (Anthropic) and Astra.
 
-To try conversion before installing anything, clone this repository and save the example
-below as `sum.py` in its root folder. With Python 3.11 or newer, generate the flowchart from
-that folder:
+Installation is optional. Copy `library/src/flowgorithm.py` next to your Python program to run
+it, and use the converter directly from this checkout to generate its flowchart. The optional
+[install.py](#installpy) only makes the library and converter commands available from any
+folder for your chosen Python.
+
+Clone this repository and save the example below as `sum.py` in its root folder. With Python
+3.11 or newer, generate the flowchart from that folder:
 
 ```bash
 python3 py2fprg.py sum.py
@@ -51,12 +55,15 @@ if __name__ == "__main__":
 ```
 
 ```bash
-PYTHONPATH=library/src python3 sum.py      # run the Python example without installation
+cp library/src/flowgorithm.py .
+python3 sum.py
 ```
 
-In PowerShell, set `$env:PYTHONPATH = "$PWD\library\src"` and run `py sum.py` instead.
-Enter `5` when prompted; the program prints `The sum is 15`. After
-[installation](#getting-started), use `python3 sum.py` and `py2fprg sum.py` directly.
+In PowerShell, use `Copy-Item library\src\flowgorithm.py .` and `py sum.py` instead.
+Enter `5` when prompted; the program prints `The sum is 15`.
+
+Your program can live anywhere: copy `flowgorithm.py` beside it and run
+`python3 /path/to/py2flowgorithm/py2fprg.py /path/to/sum.py` to convert it.
 
 This accepts a [restricted Python dialect](converter/README.md#the-dialect), not arbitrary
 Python. See the converter documentation for supported syntax and
@@ -76,8 +83,11 @@ You need Python 3.11 or newer. Running Python programs and converting them to `.
 only the standard library. Open the generated files in Flowgorithm to view and run them there;
 the optional SVG renderer requires Graphviz.
 
-1. Clone this repository and install the library and the converter for your Python (see
-   [install.py](#installpy)):
+The example above needs no installation. For convenience when working across multiple
+project folders, the following optional setup makes the library and commands available to
+your Python everywhere:
+
+1. Clone this repository and run the optional [install.py](#installpy):
 
    ```bash
    git clone https://github.com/LeshaTat/py2flowgorithm.git
@@ -118,8 +128,14 @@ py -m unittest discover -s tests
 
 ## install.py
 
-`python3 install.py` installs the library and the converter for the Python that runs it: that
-Python's programs can then `from flowgorithm import Input, Output`, and `py2fprg` works in any folder.
+`python3 install.py` is optional. It makes the library importable and the converter commands
+available from any folder for the Python that runs it. You no longer need to copy
+`flowgorithm.py` beside each program or specify the converter's path.
+
+It references this checkout rather than copying its source files. Keep the checkout in place;
+if you move it, run `install.py` again from its new location. Updates in this checkout take
+effect directly. This convenience setup applies to the selected Python environment, not all
+Python installations on the machine.
 
 If the shell says `py2fprg: command not found` try `python3 -m py2fprg`.
 Uninstall: `python3 install.py --uninstall`.

@@ -7,19 +7,23 @@ flowchart will show; the [examples](../examples) are such programs. Everything o
 is reported with the file, the line and what to write instead (`print()` → use `Output(...)`).
 
 The conversion is one-way: nothing turns a `.fprg` back into Python, and converting again
-overwrites the flowchart, so changes go into the program. The converter was written by Claude
-Opus 5.5, an AI model made by Anthropic, like the rest of this repository.
+overwrites the flowchart, so changes go into the program. The converter was written with Claude
+Opus 5.5 (Anthropic) and Astra, like the rest of this repository.
 
 The package also has three tools for `.fprg` files: a validator, a renderer and an interpreter
 (see [Checking the flowchart without Flowgorithm](#checking-the-flowchart-without-flowgorithm)).
 
 ## Getting started
 
-`python3 install.py` at the repository root installs the converter and the library for your
-Python (see the [repository's README](../README.md)): the commands `py2fprg`, `fprg-lint`,
-`fprg2svg` and `fprg-run` then work in any folder, as does `python3 -m py2fprg`. In a virtual
-environment, `pip install -e converter` works too; without installing, run
-`PYTHONPATH=converter/src python3 -m py2fprg`.
+No installation is required: from the repository root, run `python3 py2fprg.py program.py`.
+From another folder, use the full path to that launcher. To run the Python program itself,
+copy `library/src/flowgorithm.py` next to it.
+
+Optionally, `python3 install.py` at the repository root makes the library and commands
+`py2fprg`, `fprg-lint`, `fprg2svg` and `fprg-run` available from any folder for your Python
+(see the [repository's README](../README.md)). In a virtual environment,
+`pip install -e converter` works too. The commands below use this optional setup; when using
+the checkout directly, replace `py2fprg` with `python3 /path/to/py2flowgorithm/py2fprg.py`.
 
 * `py2fprg program.py` writes `program.fprg` next to it; `py2fprg exercises/` converts every
   program file in a folder (a `.py` file with `def main():`; test files and `flowgorithm.py` are

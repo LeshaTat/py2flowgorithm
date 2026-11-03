@@ -3,7 +3,7 @@
 Programs written in Python the Flowgorithm way, with the
 [`flowgorithm` library](../library), each next to the flowchart the [converter](../converter)
 makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own project. The
-examples were written by Claude Opus 5.5, an AI model made by Anthropic, like the library and the
+examples were written with Claude Opus 5.5 (Anthropic) and Astra, like the library and the
 converter.
 
 * `arith_quiz/` — an arithmetic quiz with input validation, arrays, Random and eleven small
@@ -27,9 +27,11 @@ converter.
 
 ## Your own project
 
-The library and the converter are installed once, from the
+Installation is optional: copy `library/src/flowgorithm.py` beside the program you want to run
+and convert it with `python3 /path/to/py2flowgorithm/py2fprg.py program.py`.
+The commands below assume the convenience setup from the
 [py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository (`python3 install.py`
-there; see its README). Then:
+there), which makes the library and converter tools available from any folder for your Python:
 
 ```bash
 cp -r examples ~/my-flowgorithm      # in the py2flowgorithm repository

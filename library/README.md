@@ -4,13 +4,14 @@ The library a program imports to be written the Flowgorithm way. It provides con
 and built-in functions with Flowgorithm's
 behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the
-[examples](../examples) show whole programs. The library was written by Claude Opus 5.5, an AI
-model made by Anthropic, like the rest of this repository.
+[examples](../examples) show whole programs. The library was written with Claude Opus 5.5
+(Anthropic) and Astra, like the rest of this repository.
 
-It is one file with nothing outside the standard library (`src/flowgorithm.py`). Install it
-together with the converter by running `python3 install.py` at the repository root (see the
-[repository's README](../README.md)); in a virtual environment, `pip install -e library` works
-too; or just copy `src/flowgorithm.py` next to the program.
+It is one file with nothing outside the standard library (`src/flowgorithm.py`). Copy it next
+to your program; no installation is required. Optionally, run `python3 install.py` at the
+repository root to make the library and converter available from any folder for your Python
+(see the [repository's README](../README.md)). In a virtual environment,
+`pip install -e library` also makes the library importable without copying it.
 
 ```python
 from flowgorithm import Input, Output

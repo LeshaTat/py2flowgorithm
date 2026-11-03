@@ -8,10 +8,10 @@ A complete Flowgorithm exercise solved in Python with the `flowgorithm` library:
   scripted answers (`builtins.input`) and dice (`random.randrange`).
 * `quiz.fprg` — the flowchart, made with `py2fprg quiz.py`.
 
-Run the program and the tests from this folder (with the library installed, `python3 quiz.py`
-is enough):
+Copy `library/src/flowgorithm.py` from the repository next to `quiz.py`, then run the program
+and tests from this folder. Installation is optional; if you used `install.py`, skip the copy.
 
 ```bash
-PYTHONPATH=../../library python3 quiz.py
+python3 quiz.py
 python3 -m unittest -v
 ```
