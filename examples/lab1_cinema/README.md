@@ -1,8 +1,8 @@
 # Lab 1: Cinema Seats, the start
 
-Lab 1 (Grade 9, Flowgorithm arrays) with its first task done, laid out the way the lab goes on to
-the end. Task 1.1 asks nothing, so the program is already the menu of task 1.7, with a made-up
-option for now: Show seats, which shows task 1.1's map. Copy this folder to start the lab.
+This starter project implements task 1.1 of the Grade 9 lab on Flowgorithm arrays: storing
+seat bookings and displaying a seat map. A small menu lets you show the map or quit, ready for
+later tasks to add more options. Copy this folder to start the lab.
 
 | File | What it is |
 |---|---|
@@ -12,22 +12,39 @@ option for now: Show seats, which shows task 1.1's map. Copy this folder to star
 | `main.fprg` | the flowchart of main.py, with every function it uses |
 | `.vscode/` | VS Code: the tests in the Testing view, buttons to play the program and to convert it |
 
-No installation is required: copy `library/src/flowgorithm.py` from the
-[py2flowgorithm](https://github.com/LeshaTat/py2flowgorithm) repository into the lab folder and
-convert with `python3 /path/to/py2flowgorithm/py2fprg.py main.py`.
-The commands and VS Code setup below assume the optional `python3 install.py` convenience
-setup, which makes the library and converter commands available from any folder for your Python.
+## Run and test
+
+Use Python 3.11 or newer. From the repository root, copy the lab to a new folder and put the
+library beside its programs:
 
 ```bash
-cp -r examples/lab1_cinema ~/lab1-cinema       # in the py2flowgorithm repository
+cp -r examples/lab1_cinema ~/lab1-cinema
+cp library/src/flowgorithm.py ~/lab1-cinema/
+python3 py2fprg.py ~/lab1-cinema/main.py --lint
 cd ~/lab1-cinema
-git init
-python3 main.py                                # play it
-python3 -m unittest discover -p "*.py" -v      # every file's tests
-py2fprg main.py                                # make main.fprg again after a change
+python3 main.py
+python3 -m unittest discover -p "*.py" -v
 ```
 
-On Windows, type `py` for `python3` and `py -m py2fprg` for `py2fprg`.
+The menu accepts `1` to show the seats and `2` to quit. The map displays array indexes 0–9;
+functions such as `book()` take seat numbers 1–10.
+
+In Windows PowerShell, from the repository root:
+
+```powershell
+Copy-Item -Recurse examples\lab1_cinema $HOME\lab1-cinema
+Copy-Item library\src\flowgorithm.py $HOME\lab1-cinema\
+py py2fprg.py $HOME\lab1-cinema\main.py --lint
+cd $HOME\lab1-cinema
+py main.py
+py -m unittest discover -p "*.py" -v
+```
+
+No installation is required. To regenerate `main.fprg` from inside your lab folder, use
+`python3 /path/to/py2flowgorithm/py2fprg.py main.py --lint`. The optional
+[install.py setup](../../README.md#installpy) removes the need to copy the library and lets you
+use `python3 -m py2fprg main.py --lint` instead. Run `git init` in the lab folder if you want to
+track your work in its own repository.
 
 ## The next tasks
 
@@ -39,8 +56,22 @@ the imports, so main.fprg holds every function the program uses; the test classe
 
 ## VS Code
 
-Pick the Python that install.py was run with (Python: Select Interpreter). The Testing view then
-runs every file's tests. Run and Debug has Play main.py and Convert to Flowgorithm, and
-Terminal > Run Build Task (Ctrl+Shift+B, Cmd+Shift+B on a Mac) converts too, with the
-converter's errors in Problems. The `.vscode` folder works the same in any project whose program
-is `main.py`.
+Open the lab folder in VS Code with the Python extension. The supplied configurations use
+`python -m py2fprg`, so after optional installation, choose the same Python with
+**Python: Select Interpreter**.
+
+To use the checkout directly without installation, keep `flowgorithm.py` in the lab folder
+and adjust the supplied configurations:
+
+- In `.vscode/launch.json`, replace `"module": "py2fprg"` in **Convert to Flowgorithm** with
+  `"program": "/path/to/py2flowgorithm/py2fprg.py"`.
+- In `.vscode/tasks.json`, replace `"args": ["-m", "py2fprg", ".", "--lint"]` with
+  `"args": ["/path/to/py2flowgorithm/py2fprg.py", ".", "--lint"]`.
+
+Use the actual launcher path. On Windows, forward slashes such as `C:/code/py2flowgorithm/py2fprg.py`
+work in these JSON strings.
+
+The **Testing** view discovers tests in every `.py` file. **Run and Debug** offers
+**Play main.py** and **Convert to Flowgorithm**. **Terminal > Run Build Task** also converts
+(Ctrl+Shift+B, or Cmd+Shift+B on a Mac) and shows converter errors in **Problems**.
+The `.vscode` folder can be reused in another project whose entry point is `main.py`.

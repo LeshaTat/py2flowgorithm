@@ -3,8 +3,8 @@
 `py2fprg` turns a Python program written in the Flowgorithm dialect into its Flowgorithm
 flowchart (`.fprg`), shape for shape. The programs use the [`flowgorithm` library](../library) for
 Flowgorithm's input/output and built-in functions, so running one in Python shows what its
-flowchart will show; the [examples](../examples) are such programs. Everything outside the dialect
-is reported with the file, the line and what to write instead (`print()` → use `Output(...)`).
+flowchart will show; the [examples](../examples) are such programs. Unsupported syntax is
+reported with the file, line and a suggested alternative (`print()` → use `Output(...)`).
 
 The conversion is one-way: nothing turns a `.fprg` back into Python, and converting again
 overwrites the flowchart, so changes go into the program. The converter was written with Claude
@@ -15,50 +15,79 @@ The package also has three tools for `.fprg` files: a validator, a renderer and 
 
 ## Getting started
 
-No installation is required: from the repository root, run `python3 py2fprg.py program.py`.
-From another folder, use the full path to that launcher. To run the Python program itself,
-copy `library/src/flowgorithm.py` next to it.
+Use Python 3.11 or newer. No installation is required: from the repository root, run:
+
+```bash
+python3 py2fprg.py program.py
+```
+
+This writes `program.fprg` beside the source file. On Windows, use `py` in place of `python3`.
+From another folder, use the full path to `py2fprg.py`. The launcher delegates to the converter
+package in `converter/src/py2fprg/`; keep it in the checkout.
+
+Conversion reads the source without running it. To run the Python program itself, copy
+`library/src/flowgorithm.py` next to it.
 
 Optionally, `python3 install.py` at the repository root makes the library and commands
 `py2fprg`, `fprg-lint`, `fprg2svg` and `fprg-run` available from any folder for your Python
-(see the [repository's README](../README.md)). In a virtual environment,
-`pip install -e converter` works too. The commands below use this optional setup; when using
-the checkout directly, replace `py2fprg` with `python3 /path/to/py2flowgorithm/py2fprg.py`.
+(see [optional installation](../README.md#installpy)). In a virtual environment,
+`python3 -m pip install -e converter` from the repository root also installs the converter.
 
-* `py2fprg program.py` writes `program.fprg` next to it; `py2fprg exercises/` converts every
-  program file in a folder (a `.py` file with `def main():`; test files and `flowgorithm.py` are
-  skipped). Several files and folders can be given at once; a program with an error is reported
-  and the others are still converted.
-* `--check` only checks the program, `--lint` validates the generated file, `--svg` draws a
-  preview with Graphviz, `--stdout` prints the XML, `-o` names the output.
+## Conversion options
+
+These commands run from the repository root:
+
+```bash
+python3 py2fprg.py program.py --check            # check without writing a file
+python3 py2fprg.py program.py --lint             # convert and validate the generated XML
+python3 py2fprg.py program.py --svg              # also draw program.svg (requires Graphviz)
+python3 py2fprg.py program.py -o output.fprg     # choose the output path
+python3 py2fprg.py exercises/                   # convert programs directly inside a folder
+```
+
+Replace `program.py` and `exercises/` with your paths. Folder conversion selects `.py` files
+with `def main():`, skipping test files and `flowgorithm.py`. It does not recurse into
+subfolders. You can give several files or folders in one command; an error in one program
+does not prevent conversion of the others.
+
+`--stdout` prints the XML instead of writing a file. With multiple programs, `-o` names an
+output folder. Run `python3 py2fprg.py --help` for all options. After optional installation,
+`py2fprg` or `python3 -m py2fprg` can replace `python3 py2fprg.py`.
 
 ## The program
 
-Every program has the same structure:
+Programs have a `main()` function, optional helper functions and literal constants. This is
+a complete example; save it as `tickets.py` and convert it with
+`python3 py2fprg.py tickets.py` from the repository root:
 
 ```python
-"""Title of the program.
+"""Ticket price.
 
-What it does: this becomes the program's description in Flowgorithm."""
-from flowgorithm import Input, Output
-from seats import SEATS, seat_map    # functions and constants from files in the same folder
+Calculate the total price of a group booking."""
+from flowgorithm import Input, Output, ToFixed
 
-MAX_TRIES = 5                        # constants: literal values (copied into the functions using them)
-
-
-def helper(a: int, name: str) -> float:   # functions: typed parameters
-    """A docstring becomes a comment."""
-    ...
-    return value                     # `return value` is the last statement (or no return at all)
+PRICE = 7.5
 
 
-def main():                          # the program itself: Flowgorithm's Main
-    ...
+def total_price(tickets: int) -> float:
+    """Multiply the ticket count by the price."""
+    return tickets * PRICE
+
+
+def main():
+    Output("How many tickets?")
+    tickets = Input(int)
+    Output("Total: ", ToFixed(total_price(tickets), 2))
 
 
 if __name__ == "__main__":
     main()
 ```
+
+The module docstring supplies the title and description. Function parameters have type
+annotations, and a value-returning function ends with `return`. `main()` becomes Flowgorithm's
+Main function. The final `if` block runs it when the file is executed in Python.
+For input `3`, this example prints `Total: 22.50` after its prompt.
 
 A program can be split into several files: it imports functions and constants from files in its
 folder (`from seats import seat_map`), and those files from others. A flowchart holds all its
@@ -83,7 +112,7 @@ converted.
 | `if ...: elif ...: else:` | If (an elif is an If in the False branch) |
 | `while condition:` | While |
 | `while True:` ... `if condition: break` (the break-if is the last statement) | Do, repeating while `not condition` |
-| `for i in range(n)`, `range(a, b)`, `range(a, b, -1)` | For `i` from `a` to `b - 1` (the step is a number; negative counts down) |
+| `for i in range(n)`, `range(a, b)`, `range(a, b, step)` | For from `a` (or 0) to `b - 1` for a positive step, or `b + 1` for a negative step; the step is a nonzero integer literal |
 | `def f(a: int) -> float:` ... `return value` | a function with its return variable |
 | `f(x)` as a statement | Call |
 | `# comment`, docstrings | Comment |
@@ -130,14 +159,18 @@ do the same thing:
 * Arrays have a fixed size. A new Flowgorithm array holds no values (reading one stops the
   program, checked), so `[v] * n` becomes a Declare plus a loop that fills it. Arrays are not copied or
   returned, and are made once, outside loops (Flowgorithm declares them where they are made).
-* There is no `//` (write `Int(a / b)`), no f-strings (pass several values to `Output`), no
+* There is no `//` (`Int(a / b)` truncates toward zero; it differs from Python's floor division
+  for negative results), no f-strings (pass several values to `Output`), no
   `print`/`input`/`len`/`int`/`str` (use the library), no methods, slices, tuples, dictionaries,
-  classes, `import`s other than the library, and no code at the top level other than constants.
+  or general-purpose classes. Imports are limited to the library, sibling program files and
+  `unittest` test code described above. Outside imports, function definitions, tests and the
+  `main()` guard, top-level statements must define literal constants.
 
 ### What can still differ
 
-Flowgorithm's run-time rules are not all documented, so the converter warns where it can; the
-probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm:
+The converter warns about these differences where it can. The
+[probe results](docs/probe/README.md) record observations from Flowgorithm and the environment
+used to check them:
 
 * `%` with a negative number on either side: Flowgorithm stops the program ("Illegal Value: The
   value '-7' is not valid for the function % mod"), Python gives a result (`-7 % 2` is `1`,
@@ -162,6 +195,19 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
 
 ## Checking the flowchart without Flowgorithm
 
+The tools also run directly from the repository root, without installation:
+
+```bash
+python3 converter/src/fprg_lint.py program.fprg
+python3 converter/src/fprg_run.py program.fprg --input 3
+python3 converter/src/fprg2svg.py program.fprg -o program.svg
+```
+
+Only SVG rendering requires Graphviz's `dot` executable on `PATH`. Repeat `--input` for each
+answer a program needs; `--random 3,5` supplies successive values for `Random()` calls.
+Use your own `.fprg` path, such as `tickets.fprg` from the example above.
+After optional installation, the shorter commands are:
+
 * `fprg-lint file.fprg` (`fprg_lint.py`) — a strict validator for `.fprg` files (structure,
   identifiers, declared-before-use, Flowgorithm's expression grammar, light type checks).
 * `fprg2svg file.fprg -o file.svg` (`fprg2svg.py`) — draws the flowchart with Graphviz.
@@ -171,10 +217,10 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
 * The browser viewer [FlowgorithmJS](https://andreaval.github.io/FlowgorithmJS/drawLocal.html)
   opens the generated files too; Flowgorithm itself (Windows, or the macOS port
   [jostasik/Flowgorithm-macOS](https://github.com/jostasik/Flowgorithm-macOS)) is the final proof.
-* `docs/probe/` — four small flowcharts that show, run in real Flowgorithm, the run-time rules
-  the library and `fprg_run.py` had to guess (how Reals are printed, `ToFixed` rounding, `%`,
+* [`docs/probe/`](docs/probe/README.md) — four small flowcharts used to check run-time rules
+  in Flowgorithm (how Reals are printed, `ToFixed` rounding, `%`,
   `and`/`or`, String order, the For counter, array start values, Integer size). Its README says
-  what each output line means and lists the answers found so far.
+  what each output line means and records the results and test environment.
 
 ## Files
 
@@ -182,6 +228,6 @@ probe flowcharts in [`docs/probe/`](docs/probe) settle these in real Flowgorithm
 |---|---|
 | `src/py2fprg/` | the converter (`program.py` the file structure, `convert.py` statements and expressions, `layout.py` comments and `# fg:` directives, `model.py` the shapes, `writer.py` the XML, `cli.py`) |
 | `src/fprg_lint.py`, `src/fprg2svg.py`, `src/fprg_run.py` | validator, renderer, interpreter for `.fprg` files |
-| `docs/fprg-format.md` | the reverse-engineered file format |
+| [`docs/fprg-format.md`](docs/fprg-format.md) | the reverse-engineered file format |
 | `docs/probe/` | flowcharts that show Flowgorithm's undocumented run-time rules when run (`make_probe.py` builds them) |
 | `tests/` | tests for the converter and the tools, and that the library agrees with `fprg_run` (`python3 -m unittest discover -s tests` in this folder) |

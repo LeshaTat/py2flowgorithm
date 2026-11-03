@@ -1,17 +1,16 @@
 # flowgorithm — Flowgorithm's statements and functions for Python
 
-The library a program imports to be written the Flowgorithm way. It provides console statements
-and built-in functions with Flowgorithm's
-behaviour, so running the Python program shows what its flowchart will show. The
-[converter](../converter) turns such a program into the flowchart; the
-[examples](../examples) show whole programs. The library was written with Claude Opus 5.5
-(Anthropic) and GPT-6 Astra (OpenAI), like the rest of this repository.
+`flowgorithm` provides Python versions of Flowgorithm's console statements and built-in
+functions. Use it to run and test a program before generating its flowchart with the
+[converter](../converter/README.md). The [examples](../examples/README.md) show complete programs.
+The library was written with Claude Opus 5.5 (Anthropic) and GPT-6 Astra (OpenAI), like the rest
+of this repository.
+
+## Getting started
 
 It is one file with nothing outside the standard library (`src/flowgorithm.py`). Copy it next
-to your program; no installation is required. Optionally, run `python3 install.py` at the
-repository root to make the library and converter available from any folder for your Python
-(see the [repository's README](../README.md)). In a virtual environment,
-`pip install -e library` also makes the library importable without copying it.
+to your program and use Python 3.11 or newer; no installation is required.
+Save this example as `hello.py` beside `flowgorithm.py`:
 
 ```python
 from flowgorithm import Input, Output
@@ -23,7 +22,19 @@ def main():
     Output("How old are you?")
     age = Input(int)
     Output("Hello ", name, ", next year you will be ", age + 1)
+
+
+if __name__ == "__main__":
+    main()
 ```
+
+Run `python3 hello.py` (`py hello.py` on Windows). Enter `Ann` and `20`; the final line is
+`Hello Ann, next year you will be 21`.
+
+Optionally, `python3 install.py` from the repository root makes the library and converter
+available from any folder for that Python (see [optional installation](../README.md#installpy)).
+In a virtual environment, `python3 -m pip install -e library` from the repository root also
+makes the library importable without copying it.
 
 ## Console
 
@@ -61,26 +72,43 @@ round their results the same way, but Python's own `+ - * /` keep all the digits
 Where Flowgorithm stops with an error — a bad input, an index out of range, `Sqrt(-1)`,
 `ToInteger("1.5")` — these raise `FlowgorithmError`.
 
-Flowgorithm does not document every run-time rule (how many digits a Real shows, how `ToFixed`
-rounds a value exactly halfway, ...). Where the library had to guess is listed under
-[What can still differ](../converter/README.md#what-can-still-differ); the probe flowcharts in
-[`converter/docs/probe`](../converter/docs/probe) settle it with one run in Flowgorithm.
+See [What can still differ](../converter/README.md#what-can-still-differ) for differences between
+Python and Flowgorithm, and the [probe results](../converter/docs/probe/README.md) for the
+observations and runtime environment used to check the library's behaviour.
 
 ## Testing a program
 
-A program is ordinary Python, so it can be tested with `unittest`, even in the same file (the
-converter leaves test classes out of the flowchart). `console` plays the user:
+A program can be tested with `unittest`. The `console` context manager supplies one answer per
+`Input()` call and captures `Output()` text. Save this as `test_hello.py` beside `hello.py`:
 
 ```python
-from flowgorithm import console
+import unittest
 
-with console("3", "Ann", randoms=[4]) as screen:   # typed answers; values Random() returns
-    book_seat(booked, names)
-self.assertIn("Customer name?", screen.text)       # what Output showed
+from flowgorithm import console
+from hello import main
+
+
+class HelloTest(unittest.TestCase):
+    def test_greeting(self):
+        with console("Ann", "20") as screen:
+            main()
+        self.assertEqual(
+            screen.text,
+            "Your name?\nHow old are you?\nHello Ann, next year you will be 21\n",
+        )
 ```
+
+Run `python3 -m unittest -v` from that folder. For a program that calls `Random`, supply fixed
+values with `console(..., randoms=[4, 2])`. Missing answers or random values raise
+`FlowgorithmError`, making unexpected extra input visible in a test.
+
+Tests may also sit in the program file. The converter leaves `unittest` imports and test
+classes out of the flowchart; see the [cinema example](../examples/lab1_cinema/README.md).
 
 ## Tests
 
-`python3 -m unittest discover -s tests` in this folder. That the library gives
-exactly what the converter's interpreter gives is tested in
-`converter/tests/test_library_agreement.py`.
+To test the library itself, run `python3 -m unittest discover -s tests` from `library/`.
+No installation is required. Run `python3 run_tests.py` from the repository root to include
+the converter and examples, including the checks in
+[`test_library_agreement.py`](../converter/tests/test_library_agreement.py) that compare the
+library with the converter's interpreter.

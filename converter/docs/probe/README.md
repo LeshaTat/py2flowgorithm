@@ -1,24 +1,40 @@
 # Probing Flowgorithm's run-time rules
 
-Flowgorithm documents its shapes and functions but not every run-time rule, and it runs only on
-Windows. The flowgorithm library, `fprg_run.py` and the converter's warnings rest on guesses for
-the rules below. Four flowcharts settle them, run in Flowgorithm one file at a time:
+These probes record Flowgorithm's behaviour where the library and interpreter need more detail
+than the documented shapes and functions provide. The [results below](#answers-so-far) were
+observed in the stated environment; they inform the library, `fprg_run.py` and converter warnings.
+Run the four flowcharts in Flowgorithm itself to check those observations on another setup:
 
-* `probe.fprg` — lines A to I;
-* `probe-array-start.fprg` — J: what a new array holds (and A11);
-* `probe-redeclare.fprg` — K: a Declare that runs again;
-* `probe-overflow.fprg` — L: how big an Integer gets.
+* [`probe.fprg`](probe.fprg) — lines A to I;
+* [`probe-array-start.fprg`](probe-array-start.fprg) — J: what a new array holds (and A11);
+* [`probe-redeclare.fprg`](probe-redeclare.fprg) — K: a Declare that runs again;
+* [`probe-overflow.fprg`](probe-overflow.fprg) — L: how big an Integer gets.
 
-Flowgorithm stops at the first error, and the error message is the answer for that line. Each
-answer is recorded below, the library (`library/src/flowgorithm.py`) and `converter/src/fprg_run.py`
-are changed to match, and the line is dropped from the probe (or replaced) for the next run.
-Once a file runs to `Z end`, its console (the window with the program's output) is compared with
-[`expected.txt`](expected.txt), which is what the library and `fprg_run.py` assume now, and the
-next file follows.
+## Run the probes
 
-Regenerate the files with `python3 converter/docs/probe/make_probe.py`.
+1. Open each `.fprg` in Flowgorithm and run it.
+2. Compare its console output with the matching section of [`expected.txt`](expected.txt).
+   The current files should reach `Z end`.
+3. Record any difference, including the label (such as `A8`), error text, Flowgorithm version
+   and runtime environment. Flowgorithm stops at the first error, so record it before changing
+   the probe and continuing.
 
-| Lines | Question | Assumed now | Otherwise |
+Some checks deliberately caused errors in earlier runs. Their labels remain in the results
+below, but the failing statements were removed or replaced in the current flowcharts.
+
+To regenerate the flowcharts and expected output, run this from the repository root:
+
+```bash
+python3 converter/docs/probe/make_probe.py
+```
+
+No installation is needed. The generator uses `fprg_run` to produce `expected.txt`; that output
+records the interpreter's expectations, so regenerating it is not an independent check against
+Flowgorithm. Preserve actual Flowgorithm observations in this README.
+
+## Checks
+
+| Lines | Question | Observed / expected result | Status |
 |---|---|---|---|
 | A1–A7 | how a Real is written | 15 significant digits (`2.33333333333333`, `0.3`), an exponent from `1E+15` and below `0.0001` | — (answered) |
 | A8–A10 | does Flowgorithm round Reals to 15 digits while calculating (A6 gave `0.999999999999999`)? | yes: `true`, `0`, `0.999999999999999` | — (answered) |
