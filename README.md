@@ -17,14 +17,13 @@ below as `sum.py` in its root folder. With Python 3.11 or newer, generate the fl
 that folder:
 
 ```bash
-PYTHONPATH=converter/src python3 -m py2fprg sum.py
+python3 py2fprg.py sum.py
 ```
 
 This writes `sum.fprg` next to `sum.py`; open it in Flowgorithm. In Windows PowerShell:
 
 ```powershell
-$env:PYTHONPATH = "$PWD\converter\src"
-py -m py2fprg sum.py
+py py2fprg.py sum.py
 ```
 
 ```python
