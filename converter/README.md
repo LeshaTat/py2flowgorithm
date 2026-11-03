@@ -8,7 +8,7 @@ is reported with the file, the line and what to write instead (`print()` → use
 
 The conversion is one-way: nothing turns a `.fprg` back into Python, and converting again
 overwrites the flowchart, so changes go into the program. The converter was written with Claude
-Opus 5.5 (Anthropic) and Astra, like the rest of this repository.
+Opus 5.5 (Anthropic) and GPT-6 Astra (OpenAI), like the rest of this repository.
 
 The package also has three tools for `.fprg` files: a validator, a renderer and an interpreter
 (see [Checking the flowchart without Flowgorithm](#checking-the-flowchart-without-flowgorithm)).

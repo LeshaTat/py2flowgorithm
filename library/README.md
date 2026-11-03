@@ -5,7 +5,7 @@ and built-in functions with Flowgorithm's
 behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the
 [examples](../examples) show whole programs. The library was written with Claude Opus 5.5
-(Anthropic) and Astra, like the rest of this repository.
+(Anthropic) and GPT-6 Astra (OpenAI), like the rest of this repository.
 
 It is one file with nothing outside the standard library (`src/flowgorithm.py`). Copy it next
 to your program; no installation is required. Optionally, run `python3 install.py` at the

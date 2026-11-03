@@ -3,8 +3,8 @@
 Programs written in Python the Flowgorithm way, with the
 [`flowgorithm` library](../library), each next to the flowchart the [converter](../converter)
 makes of it (`.fprg`, opens in Flowgorithm). Copy this folder to start your own project. The
-examples were written with Claude Opus 5.5 (Anthropic) and Astra, like the library and the
-converter.
+examples were written with Claude Opus 5.5 (Anthropic) and GPT-6 Astra (OpenAI), like the library
+and the converter.
 
 * `arith_quiz/` — an arithmetic quiz with input validation, arrays, Random and eleven small
   functions, with its own unit tests (`test_quiz.py`): how a program is tested.

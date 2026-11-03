@@ -10,7 +10,7 @@ one — runs and tests it like any Python program, and gets the flowchart from i
   Python, so a change made in Flowgorithm never reaches the program, and converting again
   overwrites it: change the Python and convert again.
 * **Written by AI:** the library, the converter and the examples were written with Claude Opus 5.5
-  (Anthropic) and Astra.
+  (Anthropic) and GPT-6 Astra (OpenAI).
 
 Installation is optional. Copy `library/src/flowgorithm.py` next to your Python program to run
 it, and use the converter directly from this checkout to generate its flowchart. The optional
