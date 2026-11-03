@@ -57,8 +57,6 @@ PYTHONPATH=library/src python3 sum.py      # run the Python example without inst
 In PowerShell, set `$env:PYTHONPATH = "$PWD\library\src"` and run `py sum.py` instead.
 Enter `5` when prompted; the program prints `The sum is 15`. After
 [installation](#getting-started), use `python3 sum.py` and `py2fprg sum.py` directly.
-Import each library name you use explicitly: add `Random`, `ToFixed`, or other functions
-to the import when needed. This makes dependencies visible to readers and editors.
 
 This accepts a [restricted Python dialect](converter/README.md#the-dialect), not arbitrary
 Python. See the converter documentation for supported syntax and

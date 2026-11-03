@@ -32,10 +32,6 @@ environment, `pip install -e converter` works too; without installing, run
 
 Every program has the same structure:
 
-Import the library names the program uses explicitly, for example
-`from flowgorithm import Input, Output, Random`. Wildcard imports remain supported for
-existing programs.
-
 ```python
 """Title of the program.
 

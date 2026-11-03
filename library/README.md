@@ -1,7 +1,6 @@
 # flowgorithm — Flowgorithm's statements and functions for Python
 
-The library a program imports to be written the Flowgorithm way. Import the names your program
-uses, such as `from flowgorithm import Input, Output`. The library provides console statements
+The library a program imports to be written the Flowgorithm way. It provides console statements
 and built-in functions with Flowgorithm's
 behaviour, so running the Python program shows what its flowchart will show. The
 [converter](../converter) turns such a program into the flowchart; the

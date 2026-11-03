@@ -1,7 +1,6 @@
 """flowgorithm - write a Flowgorithm program in Python.
 
-Put this file next to your program and import the names you use, for example
-``from flowgorithm import Input, Output``. The library provides Flowgorithm's console
+Put this file next to your program. The library provides Flowgorithm's console
 statements and built-in functions, with Flowgorithm's behaviour:
 
 * ``Output(value, ...)`` prints like Flowgorithm's Output shape: the values joined without
